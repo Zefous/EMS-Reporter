@@ -1,4 +1,4 @@
-"""Script to generate a full visual preview of EMS Reporter."""
+"""Script to generate a full visual preview of EMS Reporter with updated requirements."""
 
 import os
 import shutil
@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QApplication
 from app.main_window import MainWindow
 from app.report_dialog import ReportPreviewDialog
 from app.theme import MEDICAL_QSS
-from app.models import FieldType
+from app.models import ReportField, FieldType
 
 
 def create_demo_screenshot():
@@ -27,36 +27,49 @@ def create_demo_screenshot():
 
     day_city = demo_dir / "ПМП день (Город)"
     day_city.mkdir()
-    for i in range(13):
+    for i in range(10):
         (day_city / f"screen_day_{i:02d}.png").write_text("dummy")
 
     night_city = demo_dir / "ПМП ночь (Город)"
     night_city.mkdir()
-    for i in range(7):
+    for i in range(6):
         (night_city / f"screen_night_{i:02d}.png").write_text("dummy")
-
-    pills = demo_dir / "Выдача таблеток"
-    pills.mkdir()
-    for i in range(25):
-        (pills / f"pills_{i:02d}.jpg").write_text("dummy")
 
     # Initialize MainWindow with demo config
     demo_cfg = demo_dir / "demo_config.json"
     win = MainWindow(config_path=str(demo_cfg))
-    win.name_edit.setText("Kirill Alvarez")
-    win.static_edit.setText("#18290")
-    win.rank_edit.setText("Paramedic Special")
+    win.name_edit.setText("Jason Mitsui")
+    win.static_edit.setText("206277")
+    win.rank_edit.setText("Paramedic")
 
-    # Set paths in PM tab
+    # Add demo fields to PM tab (simulating user-created fields)
     pm_tab = win.config.tabs[0]
-    pm_tab.fields[0].folder_path = str(day_city)      # 13 * 2 = 26 pts
-    pm_tab.fields[1].folder_path = str(night_city)    # 7 * 3 = 21 pts
-    pm_tab.fields[4].folder_path = str(pills)         # 25 * 1 = 25 pts
-
-    # Numeric fields
-    pm_tab.fields[8].manual_count = 2   # Участие в мероприятии (2 * 5 = 10 pts)
-    pm_tab.fields[9].manual_count = 1   # Счастливый вызов (1 * 10 = 10 pts)
-    pm_tab.fields[10].manual_count = 4  # Мед. справки (4 * 5 = 20 pts)
+    pm_tab.fields = [
+        ReportField(
+            id="fld-1",
+            name="ПМП день (Город)",
+            field_type=FieldType.FOLDER,
+            folder_path=str(day_city),
+            points_per_unit=2.0,
+            cloud_link="https://drive.google.com/drive/folders/1aBcDeFgHiJkLmNoP"
+        ),
+        ReportField(
+            id="fld-2",
+            name="ПМП ночь (Город)",
+            field_type=FieldType.FOLDER,
+            folder_path=str(night_city),
+            points_per_unit=3.0,
+            cloud_link=""  # No cloud link
+        ),
+        ReportField(
+            id="fld-3",
+            name="Участие в мероприятии",
+            field_type=FieldType.NUMERIC,
+            points_per_unit=5.0,
+            manual_count=2,
+            cloud_link=""
+        ),
+    ]
 
     win.rebuild_tabs()
     win.force_refresh_all()
@@ -72,10 +85,9 @@ def create_demo_screenshot():
     pix.save(screenshot_path)
     print(f"Preview saved to {screenshot_path}")
 
-    # Also render ReportPreviewDialog
-    dlg = MainWindow.open_report_dialog
-    report_dlg = ReportPreviewDialog(win.config, current_tab_id=win.config.active_tab_id)
-    report_dlg.resize(750, 620)
+    # Render ReportPreviewDialog with individual fields
+    report_dlg = ReportPreviewDialog(win.config, tab=pm_tab)
+    report_dlg.resize(760, 600)
     report_dlg.show()
     app.processEvents()
 

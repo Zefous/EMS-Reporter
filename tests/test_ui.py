@@ -11,7 +11,8 @@ from PySide6.QtWidgets import QApplication
 from app.models import ReporterConfig, DepartmentTab, ReportField, FieldType
 from app.main_window import MainWindow
 from app.theme import MEDICAL_QSS
-from app.report_dialog import ReportPreviewDialog
+from app.report_dialog import ReportPreviewDialog, ReportFieldItem
+from app.field_widget import FieldCardWidget
 
 
 @pytest.fixture(scope="session")
@@ -26,7 +27,7 @@ def qapp():
 
 
 def test_main_window_lifecycle_and_ui(qapp):
-    """Verify MainWindow initializes cleanly, loads tabs, and updates totals."""
+    """Verify MainWindow initializes cleanly, loads tabs with 0 fields by default."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         config_path = Path(tmp_dir) / "test_gui_config.json"
         window = MainWindow(config_path=str(config_path))
@@ -36,55 +37,123 @@ def test_main_window_lifecycle_and_ui(qapp):
         assert window.tab_widget.count() == 4
         assert "Paramedic" in window.tab_widget.tabText(0)
 
-        # Check total initial points (0)
-        assert "0 шт • 0 б" in window.stats_badge.text()
+        # By requirement #2: All tabs should have NO pre-created fields
+        pm_tab_widget = window.tab_widgets[window.config.tabs[0].id]
+        assert len(pm_tab_widget.field_cards) == 0
 
         # Change player info
-        window.name_edit.setText("Dmitry Sidorov")
-        window.static_edit.setText("#54321")
-        window.rank_edit.setText("Surgeon")
-        assert window.config.player_name == "Dmitry Sidorov"
-        assert window.config.player_static == "#54321"
+        window.name_edit.setText("Jason Mitsui")
+        window.static_edit.setText("206277")
+        window.rank_edit.setText("Paramedic")
+        assert window.config.player_name == "Jason Mitsui"
+        assert window.config.player_static == "206277"
 
-        # Check Paramedic tab fields
-        pm_tab_widget = window.tab_widgets[window.config.tabs[0].id]
-        assert len(pm_tab_widget.field_cards) == 11
+        # Now add a numeric field programmatically to test live badge and editing
+        test_field = ReportField(
+            id="f-num-test",
+            name="Участие в мероприятии",
+            field_type=FieldType.NUMERIC,
+            points_per_unit=5.0,
+            manual_count=2
+        )
+        window.config.tabs[0].fields.append(test_field)
+        pm_tab_widget.rebuild_fields()
+        window.update_totals()
 
-        # Simulate changing numeric count on a card
-        # Find numeric field card
-        num_cards = [c for c in pm_tab_widget.field_cards if c.field.field_type == FieldType.NUMERIC]
-        assert len(num_cards) >= 3
+        assert len(pm_tab_widget.field_cards) == 1
+        card = pm_tab_widget.field_cards[0]
 
-        first_num_card = num_cards[0]  # "Участие в мероприятии", 5 pts
-        first_num_card.spin_count.setValue(4)  # 4 * 5 = 20 pts
-        assert first_num_card.field.manual_count == 4
-        assert first_num_card.badge_lbl.text() == "(4 шт - 20 б)"
+        # Requirement #3: Badge must be selectable and copyable, but read-only
+        assert card.badge_lbl.isReadOnly() is True
+        assert card.badge_lbl.text() == "(2 шт - 10 б)"
 
-        # Check that window total updated
-        assert "4 шт • 20 б" in window.stats_badge.text()
+        # Requirement #1: Changing points_per_unit must update the info label under title
+        assert "Ценность: 5 б. за единицу" in card.info_lbl.text()
+        card.field.points_per_unit = 7.0
+        card.refresh_display()
+        assert "Ценность: 7 б. за единицу" in card.info_lbl.text()
+        assert card.badge_lbl.text() == "(2 шт - 14 б)"
 
-        # Render window to a screenshot pixmap to ensure styling renders without crash
+        # Changing manual count
+        card.spin_count.setValue(3)
+        assert card.badge_lbl.text() == "(3 шт - 21 б)"
+
+        # Grab screenshot
         pixmap = window.grab()
         assert not pixmap.isNull()
-        assert pixmap.width() > 0
-        assert pixmap.height() > 0
 
         window.close()
 
 
-def test_report_dialog_rendering(qapp):
-    """Verify ReportPreviewDialog opens, updates text, and clipboard actions work."""
+def test_report_dialog_individual_fields(qapp):
+    """Verify ReportPreviewDialog renders individual fields according to requirement #5."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         config_path = Path(tmp_dir) / "test_gui_config.json"
         window = MainWindow(config_path=str(config_path))
-        window.config.player_name = "Alex Stone"
-        window.config.tabs[0].fields[0].manual_count = 5
+        window.config.player_name = "Jason Mitsui"
+        window.config.player_static = "206277"
 
-        dlg = ReportPreviewDialog(window.config, current_tab_id=window.config.tabs[0].id)
-        assert "Alex Stone" in dlg.text_edit.toPlainText()
-        assert "ОТЧЁТ О ПРОДЕЛАННОЙ РАБОТЕ EMS" in dlg.text_edit.toPlainText()
+        pm_tab = window.config.tabs[0]
+        pm_tab.fields = [
+            ReportField(
+                id="f1",
+                name="ПМП день (Город)",
+                field_type=FieldType.NUMERIC,
+                points_per_unit=2.0,
+                manual_count=10,
+                cloud_link="https://drive.google.com/folder1"
+            ),
+            ReportField(
+                id="f2",
+                name="ПМП ночь (Город)",
+                field_type=FieldType.NUMERIC,
+                points_per_unit=3.0,
+                manual_count=6,
+                cloud_link=""
+            )
+        ]
 
-        dlg.copy_to_clipboard()
-        assert "скопирован" in dlg.status_msg_lbl.text().lower()
+        dlg = ReportPreviewDialog(window.config, tab=pm_tab)
+        dlg.show()
+
+        # Check field items count: 1 (Player) + 2 (Fields) + 1 (Total) = 4
+        assert len(dlg.field_items) == 4
+
+        # Field 1: Player info
+        assert dlg.field_items[0].title == "Имя Фамилия | статик"
+        assert dlg.field_items[0].get_text() == '"Jason Mitsui | 206277"'
+
+        # Field 2: Cloud link + status
+        assert dlg.field_items[1].title == "ПМП день (Город)"
+        assert dlg.field_items[1].get_text() == '"https://drive.google.com/folder1 (10 шт - 20 б)"'
+
+        # Field 3: Without cloud link
+        assert dlg.field_items[2].title == "ПМП ночь (Город)"
+        assert dlg.field_items[2].get_text() == '"(6 шт - 18 б)"'
+
+        # Field 4: Total points
+        assert dlg.field_items[3].title == "Общее количество баллов"
+        assert dlg.field_items[3].get_text() == '"38"'
+
+        # Test copying individual item
+        dlg.field_items[1].copy_value()
+        assert QApplication.clipboard().text() == '"https://drive.google.com/folder1 (10 шт - 20 б)"'
+
+        # Test toggling quotes off
+        dlg.quotes_chk.setChecked(False)
+        assert dlg.field_items[0].get_text() == 'Jason Mitsui | 206277'
+        assert dlg.field_items[1].get_text() == 'https://drive.google.com/folder1 (10 шт - 20 б)'
+        assert dlg.field_items[2].get_text() == '(6 шт - 18 б)'
+        assert dlg.field_items[3].get_text() == '38'
+
+        # Test copying entire report text
+        dlg.copy_all_report()
+        clipboard_text = QApplication.clipboard().text()
+        assert "Имя Фамилия | статик" in clipboard_text
+        assert "Jason Mitsui | 206277" in clipboard_text
+        assert "ПМП день (Город)" in clipboard_text
+        assert "Общее количество баллов" in clipboard_text
+        assert "38" in clipboard_text
+
         dlg.close()
         window.close()

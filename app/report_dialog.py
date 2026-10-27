@@ -1,65 +1,166 @@
-"""Report Preview and Export Dialog."""
+"""Report Preview and Export Dialog with individual fields."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from typing import Optional, List
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
+    QWidget,
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
-    QPlainTextEdit,
+    QLineEdit,
     QPushButton,
     QCheckBox,
     QApplication,
     QMessageBox,
     QFileDialog,
+    QScrollArea,
+    QFrame,
 )
 
-from app.models import ReporterConfig
-from app.storage import ReportGenerator
+from app.models import ReporterConfig, DepartmentTab
+
+
+class ReportFieldItem(QWidget):
+    """Single report item with a title label, editable/copyable value, and a copy button."""
+
+    def __init__(self, title: str, raw_value: str, with_quotes: bool = True, parent=None):
+        super().__init__(parent)
+        self.title = title
+        self.raw_value = raw_value
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 8)
+        layout.setSpacing(4)
+
+        # Field title label
+        self.title_lbl = QLabel(title)
+        self.title_lbl.setStyleSheet("font-weight: 700; color: #38bdf8; font-size: 13px;")
+        layout.addWidget(self.title_lbl)
+
+        # Value input row
+        row = QHBoxLayout()
+        row.setSpacing(8)
+
+        self.val_edit = QLineEdit()
+        self.val_edit.setStyleSheet("font-size: 13px; padding: 6px 10px; background-color: #07101b;")
+        self.set_quotes(with_quotes)
+
+        self.copy_btn = QPushButton("📋 Скопировать")
+        self.copy_btn.setObjectName("secondaryButton")
+        self.copy_btn.setFixedWidth(130)
+        self.copy_btn.clicked.connect(self.copy_value)
+
+        row.addWidget(self.val_edit, 1)
+        row.addWidget(self.copy_btn)
+        layout.addLayout(row)
+
+    def set_quotes(self, with_quotes: bool):
+        val = self.raw_value.strip()
+        if with_quotes:
+            self.val_edit.setText(f'"{val}"')
+        else:
+            self.val_edit.setText(val)
+
+    def get_text(self) -> str:
+        return self.val_edit.text()
+
+    def copy_value(self):
+        text = self.val_edit.text()
+        QApplication.clipboard().setText(text)
+        self.copy_btn.setText("✓ Скопировано!")
+        self.copy_btn.setStyleSheet("background-color: #059669; color: white;")
+        QTimer.singleShot(1500, self.reset_copy_btn)
+
+    def reset_copy_btn(self):
+        self.copy_btn.setText("📋 Скопировать")
+        self.copy_btn.setStyleSheet("")
 
 
 class ReportPreviewDialog(QDialog):
-    """Dialog showing the formatted Discord/Forum report ready to be copied or saved."""
+    """Dialog showing the department report as individual form fields."""
 
-    def __init__(self, config: ReporterConfig, current_tab_id: str | None = None, parent=None):
+    def __init__(
+        self,
+        config: ReporterConfig,
+        tab: Optional[DepartmentTab] = None,
+        current_tab_id: Optional[str] = None,
+        parent=None
+    ):
         super().__init__(parent)
         self.config = config
-        self.current_tab_id = current_tab_id
 
-        self.setWindowTitle("🚑 Готовый отчёт EMS - Majestic RP")
-        self.resize(720, 600)
+        # Determine target department tab
+        self.tab = tab
+        if self.tab is None and current_tab_id:
+            self.tab = next((t for t in config.tabs if t.id == current_tab_id), None)
+        if self.tab is None and config.active_tab_id:
+            self.tab = next((t for t in config.tabs if t.id == config.active_tab_id), None)
+        if self.tab is None and config.tabs:
+            self.tab = config.tabs[0]
+
+        tab_name = self.tab.title if self.tab else "Отдел"
+        self.setWindowTitle(f"🚑 Формирование отчёта — {tab_name}")
+        self.resize(760, 640)
+        self.setMinimumSize(600, 480)
+
+        self.field_items: List[ReportFieldItem] = []
         self.setup_ui()
-        self.update_report_text()
+        self.populate_fields()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
 
-        # Header
-        header = QLabel("📋 Сформированный отчёт для Discord / Форума")
-        header.setStyleSheet("font-size: 16px; font-weight: bold; color: #38bdf8;")
-        layout.addWidget(header)
+        # Header banner
+        header_frame = QFrame()
+        header_frame.setStyleSheet(
+            "background-color: #0f2234; border: 1px solid #1a3650; border-radius: 8px; padding: 10px 16px;"
+        )
+        h_layout = QVBoxLayout(header_frame)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+        h_layout.setSpacing(4)
+
+        tab_title = self.tab.title if self.tab else "Не выбран"
+        title_lbl = QLabel(f"📋 Отчёт по отделу: {tab_title}")
+        title_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #38bdf8;")
+
+        desc_lbl = QLabel(
+            "Поля отчёта созданы автоматически на основе настроек отдела. "
+            "Вы можете скопировать каждое поле отдельно или весь отчёт целиком."
+        )
+        desc_lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
+
+        h_layout.addWidget(title_lbl)
+        h_layout.addWidget(desc_lbl)
+        layout.addWidget(header_frame)
 
         # Options row
         opt_layout = QHBoxLayout()
-        self.active_only_chk = QCheckBox("Включить только текущий отдел (активную вкладку)")
-        self.active_only_chk.stateChanged.connect(self.update_report_text)
-        opt_layout.addWidget(self.active_only_chk)
+        self.quotes_chk = QCheckBox('Заключать содержимое в кавычки "" (например: "Jason Mitsui | 206277")')
+        self.quotes_chk.setChecked(True)
+        self.quotes_chk.stateChanged.connect(self.on_quotes_toggled)
+        opt_layout.addWidget(self.quotes_chk)
         opt_layout.addStretch()
         layout.addLayout(opt_layout)
 
-        # Report text editor
-        self.text_edit = QPlainTextEdit()
-        self.text_edit.setReadOnly(False)  # User can make manual edits if desired
-        self.text_edit.setStyleSheet(
-            "font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; line-height: 1.4;"
-        )
-        layout.addWidget(self.text_edit, 1)
+        # Scroll Area for fields
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        # Footer action buttons
+        self.scroll_content = QWidget()
+        self.items_layout = QVBoxLayout(self.scroll_content)
+        self.items_layout.setContentsMargins(8, 8, 8, 8)
+        self.items_layout.setSpacing(10)
+
+        self.scroll.setWidget(self.scroll_content)
+        layout.addWidget(self.scroll, 1)
+
+        # Footer
         footer_layout = QHBoxLayout()
         footer_layout.setSpacing(10)
 
@@ -67,48 +168,109 @@ class ReportPreviewDialog(QDialog):
         self.status_msg_lbl.setStyleSheet("color: #10b981; font-weight: 600;")
         footer_layout.addWidget(self.status_msg_lbl, 1)
 
+        self.copy_all_btn = QPushButton("📋 Скопировать весь отчёт")
+        self.copy_all_btn.setObjectName("primaryButton")
+        self.copy_all_btn.clicked.connect(self.copy_all_report)
+
         self.save_txt_btn = QPushButton("💾 Сохранить в .txt")
         self.save_txt_btn.setObjectName("secondaryButton")
         self.save_txt_btn.clicked.connect(self.save_to_txt)
-
-        self.copy_btn = QPushButton("📋 Скопировать в буфер")
-        self.copy_btn.setObjectName("primaryButton")
-        self.copy_btn.clicked.connect(self.copy_to_clipboard)
 
         self.close_btn = QPushButton("Закрыть")
         self.close_btn.setObjectName("secondaryButton")
         self.close_btn.clicked.connect(self.accept)
 
+        footer_layout.addWidget(self.copy_all_btn)
         footer_layout.addWidget(self.save_txt_btn)
-        footer_layout.addWidget(self.copy_btn)
         footer_layout.addWidget(self.close_btn)
         layout.addLayout(footer_layout)
 
-    def update_report_text(self):
-        active_only = self.active_only_chk.isChecked()
-        text = ReportGenerator.generate_markdown_report(
-            self.config,
-            active_tab_only=active_only,
-            current_tab_id=self.current_tab_id
-        )
-        self.text_edit.setPlainText(text)
+    def populate_fields(self):
+        """Build all report fields for current department."""
+        # Clear existing
+        for item in self.field_items:
+            self.items_layout.removeWidget(item)
+            item.deleteLater()
+        self.field_items.clear()
 
-    def copy_to_clipboard(self):
-        text = self.text_edit.toPlainText()
+        with_quotes = self.quotes_chk.isChecked()
+
+        # 1. First Field: Player Name | Static ID
+        name = self.config.player_name.strip() if self.config.player_name else ""
+        static = self.config.player_static.strip() if self.config.player_static else ""
+        if name and static:
+            player_info = f"{name} | {static}"
+        elif name:
+            player_info = name
+        elif static:
+            player_info = static
+        else:
+            player_info = "Имя Фамилия | статик"
+
+        first_item = ReportFieldItem("Имя Фамилия | статик", player_info, with_quotes, self.scroll_content)
+        self.items_layout.addWidget(first_item)
+        self.field_items.append(first_item)
+
+        # 2. Intermediate Fields from the active tab
+        if self.tab and self.tab.fields:
+            for field in self.tab.fields:
+                entry_val = field.format_report_entry()
+                item = ReportFieldItem(field.name, entry_val, with_quotes, self.scroll_content)
+                self.items_layout.addWidget(item)
+                self.field_items.append(item)
+        else:
+            empty_lbl = QLabel("В этой вкладке пока нет полей. Добавьте поля на главном окне.")
+            empty_lbl.setStyleSheet("color: #64748b; font-style: italic; padding: 12px;")
+            self.items_layout.addWidget(empty_lbl)
+
+        # 3. Last Field: Total Points of active tab
+        tot_pts = self.tab.total_points() if self.tab else 0.0
+        pts_str = f"{int(tot_pts)}" if tot_pts.is_integer() else f"{tot_pts:.1f}"
+
+        last_item = ReportFieldItem("Общее количество баллов", pts_str, with_quotes, self.scroll_content)
+        self.items_layout.addWidget(last_item)
+        self.field_items.append(last_item)
+
+        self.items_layout.addStretch()
+
+    def on_quotes_toggled(self, state: int):
+        with_quotes = self.quotes_chk.isChecked()
+        for item in self.field_items:
+            item.set_quotes(with_quotes)
+
+    def assemble_full_report_text(self) -> str:
+        """Assemble full report text in the format:
+        Title 1
+        "Value 1"
+        Title 2
+        "Value 2"
+        ...
+        """
+        lines = []
+        for item in self.field_items:
+            lines.append(item.title)
+            lines.append(item.get_text())
+        return "\n".join(lines)
+
+    def copy_all_report(self):
+        text = self.assemble_full_report_text()
         QApplication.clipboard().setText(text)
-        self.status_msg_lbl.setText("✓ Отчёт успешно скопирован в буфер обмена!")
+        self.status_msg_lbl.setText("✓ Весь отчёт скопирован в буфер обмена!")
 
     def save_to_txt(self):
+        dept_code = self.tab.code if (self.tab and self.tab.code) else "EMS"
+        default_filename = f"Отчёт_{dept_code}.txt"
+
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить отчёт в текстовый файл",
-            "EMS_Report.txt",
+            default_filename,
             "Text files (*.txt);;All files (*.*)"
         )
         if path:
             try:
                 with open(path, "w", encoding="utf-8") as f:
-                    f.write(self.text_edit.toPlainText())
+                    f.write(self.assemble_full_report_text())
                 QMessageBox.information(self, "Успех", f"Отчёт успешно сохранён:\n{path}")
             except Exception as e:
                 QMessageBox.warning(self, "Ошибка", f"Не удалось сохранить файл:\n{e}")

@@ -126,6 +126,19 @@ class EditFieldDialog(QDialog):
         pts_layout.addWidget(self.points_spin)
         layout.addLayout(pts_layout)
 
+        # Cloud Link (Optional, for all field types)
+        link_layout = QVBoxLayout()
+        link_lbl = QLabel("Ссылка на облачное хранилище (Google Диск, Imgur и др., необязательно):")
+        link_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        self.cloud_link_edit = QLineEdit()
+        self.cloud_link_edit.setPlaceholderText("https://drive.google.com/drive/folders/... или https://imgur.com/...")
+        link_hint = QLabel("Используется при формировании отчёта (не отображается на главном экране)")
+        link_hint.setStyleSheet("font-size: 11px; color: #64748b;")
+        link_layout.addWidget(link_lbl)
+        link_layout.addWidget(self.cloud_link_edit)
+        link_layout.addWidget(link_hint)
+        layout.addLayout(link_layout)
+
         # Dialog Buttons
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -164,6 +177,7 @@ class EditFieldDialog(QDialog):
         self.folder_edit.setText(f.folder_path)
         self.points_spin.setValue(f.points_per_unit)
         self.manual_spin.setValue(f.manual_count)
+        self.cloud_link_edit.setText(f.cloud_link or "")
         self.on_type_changed(idx)
 
     def validate_and_save(self):
@@ -177,6 +191,7 @@ class EditFieldDialog(QDialog):
         pts = self.points_spin.value()
         folder = self.folder_edit.text().strip() if ft == FieldType.FOLDER else ""
         manual = self.manual_spin.value() if ft == FieldType.NUMERIC else 0
+        cloud_link = self.cloud_link_edit.text().strip()
 
         fid = self.field.id if self.field else str(uuid.uuid4())
 
@@ -186,7 +201,8 @@ class EditFieldDialog(QDialog):
             field_type=ft,
             folder_path=folder,
             points_per_unit=pts,
-            manual_count=manual
+            manual_count=manual,
+            cloud_link=cloud_link
         )
         self.accept()
 

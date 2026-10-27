@@ -134,6 +134,8 @@ QTabBar::tab:hover:!selected {
     padding: 4px 10px;
     border-radius: 6px;
     border: 1px solid #0284c7;
+    selection-background-color: #0284c7;
+    selection-color: #ffffff;
 }
 
 #badgeNumericScore {
@@ -144,6 +146,18 @@ QTabBar::tab:hover:!selected {
     padding: 4px 10px;
     border-radius: 6px;
     border: 1px solid #059669;
+    selection-background-color: #059669;
+    selection-color: #ffffff;
+}
+
+QLineEdit#badgeScore:focus {
+    border: 1px solid #38bdf8;
+    background-color: #123d50;
+}
+
+QLineEdit#badgeNumericScore:focus {
+    border: 1px solid #34d399;
+    background-color: #0f4233;
 }
 
 /* Buttons */

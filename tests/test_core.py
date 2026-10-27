@@ -53,8 +53,32 @@ def test_folder_field_scanning():
         assert field.format_status_text() == "(13 шт - 26 б)"
 
 
-def test_default_config_structure():
-    """Verify default config contains PM, DI, PSED, HAD and all 11 Paramedic fields."""
+def test_cloud_link_format_report_entry():
+    """Verify format_report_entry with and without cloud link."""
+    # Without cloud link
+    f1 = ReportField(
+        id="f1",
+        name="ПМП день (Город)",
+        field_type=FieldType.NUMERIC,
+        points_per_unit=3.0,
+        manual_count=6
+    )
+    assert f1.format_report_entry() == "(6 шт - 18 б)"
+
+    # With cloud link
+    f2 = ReportField(
+        id="f2",
+        name="ПМП день (Город)",
+        field_type=FieldType.NUMERIC,
+        points_per_unit=2.0,
+        manual_count=10,
+        cloud_link="https://drive.google.com/drive/folders/test12345"
+    )
+    assert f2.format_report_entry() == "https://drive.google.com/drive/folders/test12345 (10 шт - 20 б)"
+
+
+def test_default_config_has_empty_fields():
+    """Verify default tabs exist (PM, DI, PSED, HAD) and have no pre-created fields."""
     config = create_default_config()
     codes = [t.code for t in config.tabs]
     assert "PM" in codes
@@ -62,22 +86,8 @@ def test_default_config_structure():
     assert "PSED" in codes
     assert "HAD" in codes
 
-    pm_tab = next(t for t in config.tabs if t.code == "PM")
-    assert len(pm_tab.fields) == 11
-
-    # Check required items exist
-    field_names = [f.name for f in pm_tab.fields]
-    assert any("Реанимация в городе (день)" in name for name in field_names)
-    assert any("Реанимация в городе (ночь)" in name for name in field_names)
-    assert any("Реанимация за городом (день)" in name for name in field_names)
-    assert any("Реанимация за городом (ночь)" in name for name in field_names)
-    assert any("Выдача таблеток" in name for name in field_names)
-    assert any("Вакцинация в городе" in name for name in field_names)
-    assert any("Вакцинация за городом" in name for name in field_names)
-    assert any("Отменённые вызовы" in name for name in field_names)
-    assert any("Участие в мероприятии" in name for name in field_names)
-    assert any("Счастливый вызов" in name for name in field_names)
-    assert any("Выдача комплектов мед. справок" in name for name in field_names)
+    for t in config.tabs:
+        assert len(t.fields) == 0, f"Tab {t.title} should have 0 fields by default"
 
 
 def test_config_save_load_and_export():
@@ -110,23 +120,43 @@ def test_config_save_load_and_export():
         assert len(imported.tabs) == len(loaded.tabs)
 
 
-def test_report_generation():
-    """Verify markdown report generation contains player info, tabs, and totals."""
+def test_plain_report_generation():
+    """Verify plain text report matches user required format with separate fields."""
     config = create_default_config()
-    config.player_name = "Kirill EMS"
-    config.player_static = "#9999"
-    config.rank = "Paramedic Lead"
+    config.player_name = "Jason Mitsui"
+    config.player_static = "206277"
 
-    # Set some counts
-    pm_tab = next(t for t in config.tabs if t.code == "PM")
-    pm_tab.fields[8].manual_count = 2  # Участие в мероприятии (5 б/ед = 10 б)
-    pm_tab.fields[9].manual_count = 1  # Счастливый вызов (10 б/ед = 10 б)
+    tab = config.tabs[0]
+    tab.fields = [
+        ReportField(
+            id="f1",
+            name="ПМП день (Город)",
+            field_type=FieldType.NUMERIC,
+            points_per_unit=2.0,
+            manual_count=10,
+            cloud_link="https://drive.google.com/folder1"
+        ),
+        ReportField(
+            id="f2",
+            name="ПМП ночь (Город)",
+            field_type=FieldType.NUMERIC,
+            points_per_unit=3.0,
+            manual_count=6,
+            cloud_link=""
+        ),
+    ]
 
-    report_md = ReportGenerator.generate_markdown_report(config)
-    assert "Kirill EMS" in report_md
-    assert "#9999" in report_md
-    assert "Paramedic Lead" in report_md
-    assert "Paramedic (PM)" in report_md
-    assert "Участие в мероприятии" in report_md
-    assert "ИТОГО" in report_md
-    assert "20" in report_md  # 10 + 10 points
+    report = ReportGenerator.generate_plain_report(config, tab)
+    expected_lines = [
+        "Имя Фамилия | статик",
+        '"Jason Mitsui | 206277"',
+        "ПМП день (Город)",
+        '"https://drive.google.com/folder1 (10 шт - 20 б)"',
+        "ПМП ночь (Город)",
+        '"(6 шт - 18 б)"',
+        "Общее количество баллов",
+        '"38"'
+    ]
+
+    for expected in expected_lines:
+        assert expected in report

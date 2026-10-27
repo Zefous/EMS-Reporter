@@ -23,6 +23,7 @@ class ReportField(BaseModel):
     folder_path: str = Field(default="", description="Path to folder containing screenshots (for folder type)")
     points_per_unit: float = Field(default=1.0, description="Points awarded per screenshot or unit")
     manual_count: int = Field(default=0, ge=0, description="Current value for numeric fields")
+    cloud_link: str = Field(default="", description="Optional cloud storage link (e.g. Google Drive folder, Imgur album)")
     filter_extensions: List[str] = Field(
         default_factory=lambda: [".png", ".jpg", ".jpeg", ".bmp", ".webp"],
         description="Allowed image file extensions for folder scanning (empty = all files)"
@@ -74,6 +75,14 @@ class ReportField(BaseModel):
         # Format points nicely: 26 instead of 26.0 if whole number
         pts_str = f"{int(pts)}" if pts.is_integer() else f"{pts:.1f}"
         return f"({count} шт - {pts_str} б)"
+
+    def format_report_entry(self) -> str:
+        """Format field value for report, e.g. 'https://... (10 шт - 20 б)' or '(6 шт - 18 б)'."""
+        status = self.format_status_text()
+        link = self.cloud_link.strip() if self.cloud_link else ""
+        if link:
+            return f"{link} {status}"
+        return status
 
 
 class DepartmentTab(BaseModel):

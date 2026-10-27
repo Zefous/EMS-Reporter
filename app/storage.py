@@ -62,7 +62,51 @@ class ConfigManager:
 
 
 class ReportGenerator:
-    """Generates formatted text reports for Discord or Majestic RP Forum."""
+    """Generates formatted reports for Majestic RP."""
+
+    @staticmethod
+    def generate_plain_report(config: ReporterConfig, tab: DepartmentTab) -> str:
+        """Generate plain text report for the active department tab.
+
+        Format:
+        Имя Фамилия | статик
+        "Jason Mitsui | 206277"
+        Название поля 1
+        "ссылка (10 шт - 20 б)"
+        ...
+        Общее количество баллов
+        "38"
+        """
+        lines = []
+
+        # 1. Player Info Header
+        name = config.player_name.strip() if config.player_name else ""
+        static = config.player_static.strip() if config.player_static else ""
+        if name and static:
+            player_info = f"{name} | {static}"
+        elif name:
+            player_info = name
+        elif static:
+            player_info = static
+        else:
+            player_info = "Имя Фамилия | статик"
+
+        lines.append("Имя Фамилия | статик")
+        lines.append(f'"{player_info}"')
+
+        # 2. Fields in the active tab
+        for field in tab.fields:
+            lines.append(field.name)
+            entry = field.format_report_entry()
+            lines.append(f'"{entry}"')
+
+        # 3. Total points for the active tab
+        tot_pts = tab.total_points()
+        pts_str = f"{int(tot_pts)}" if tot_pts.is_integer() else f"{tot_pts:.1f}"
+        lines.append("Общее количество баллов")
+        lines.append(f'"{pts_str}"')
+
+        return "\n".join(lines)
 
     @staticmethod
     def generate_markdown_report(config: ReporterConfig, active_tab_only: bool = False, current_tab_id: Optional[str] = None) -> str:

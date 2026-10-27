@@ -318,10 +318,11 @@ class MainWindow(QMainWindow):
         self.config_manager.save(self.config)
 
     def open_report_dialog(self):
-        # Refresh current tab before showing
+        # Refresh all tabs before showing
         self.force_refresh_all()
-        active_id = self.config.active_tab_id
-        dlg = ReportPreviewDialog(self.config, current_tab_id=active_id, parent=self)
+        current_idx = self.tab_widget.currentIndex()
+        active_tab = self.config.tabs[current_idx] if 0 <= current_idx < len(self.config.tabs) else None
+        dlg = ReportPreviewDialog(self.config, tab=active_tab, parent=self)
         dlg.exec()
 
     def export_config(self):

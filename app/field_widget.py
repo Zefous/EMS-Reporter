@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSpinBox,
     QFileDialog,
@@ -125,15 +126,17 @@ class FieldCardWidget(QFrame):
         right_layout = QHBoxLayout()
         right_layout.setSpacing(10)
 
-        # Badge: "(13 шт - 26 б)"
-        self.badge_lbl = QLabel()
+        # Badge: "(13 шт - 26 б)" - Selectable & copyable, but read-only
+        self.badge_lbl = QLineEdit()
+        self.badge_lbl.setReadOnly(True)
+        self.badge_lbl.setAlignment(Qt.AlignCenter)
         if self.field.field_type == FieldType.NUMERIC:
             self.badge_lbl.setObjectName("badgeNumericScore")
         else:
             self.badge_lbl.setObjectName("badgeScore")
-        self.badge_lbl.setAlignment(Qt.AlignCenter)
         self.badge_lbl.setFixedHeight(30)
-        self.badge_lbl.setMinimumWidth(125)
+        self.badge_lbl.setMinimumWidth(130)
+        self.badge_lbl.setToolTip("Выделите текст мышью и скопируйте (Ctrl+C)")
         right_layout.addWidget(self.badge_lbl)
 
         # Actions buttons (Edit, Reorder, Delete)
@@ -191,6 +194,11 @@ class FieldCardWidget(QFrame):
             self.path_lbl.setText(f"📁 {p} • ({pts_val} б/скриншот)")
             self.path_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
 
+    def update_info_label(self):
+        if hasattr(self, "info_lbl"):
+            pts_val = f"{int(self.field.points_per_unit)}" if self.field.points_per_unit.is_integer() else f"{self.field.points_per_unit:.1f}"
+            self.info_lbl.setText(f"Ручной ввод данных • Ценность: {pts_val} б. за единицу")
+
     def select_folder(self):
         curr = self.field.folder_path if os.path.exists(self.field.folder_path) else ""
         folder = QFileDialog.getExistingDirectory(self, f"Выберите папку для: {self.field.name}", curr)
@@ -231,8 +239,8 @@ class FieldCardWidget(QFrame):
                 self.field.folder_path = rf.folder_path
                 self.field.points_per_unit = rf.points_per_unit
                 self.field.manual_count = rf.manual_count
+                self.field.cloud_link = rf.cloud_link
                 self.title_lbl.setText(self.field.name)
-                self.update_path_label()
                 self.refresh_display()
                 self.changed.emit()
 
@@ -248,7 +256,8 @@ class FieldCardWidget(QFrame):
             self.deleted.emit(self.field.id)
 
     def refresh_display(self):
-        """Update badge text e.g. '(13 шт - 26 б)'."""
+        """Update badge text e.g. '(13 шт - 26 б)' and labels."""
         badge_text = self.field.format_status_text()
         self.badge_lbl.setText(badge_text)
         self.update_path_label()
+        self.update_info_label()
