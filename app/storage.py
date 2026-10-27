@@ -92,19 +92,19 @@ class ReportGenerator:
             player_info = "Имя Фамилия | статик"
 
         lines.append("Имя Фамилия | статик")
-        lines.append(f'"{player_info}"')
+        lines.append(player_info)
 
         # 2. Fields in the active tab
         for field in tab.fields:
             lines.append(field.name)
             entry = field.format_report_entry()
-            lines.append(f'"{entry}"')
+            lines.append(entry)
 
         # 3. Total points for the active tab
         tot_pts = tab.total_points()
         pts_str = f"{int(tot_pts)}" if tot_pts.is_integer() else f"{tot_pts:.1f}"
         lines.append("Общее количество баллов")
-        lines.append(f'"{pts_str}"')
+        lines.append(pts_str)
 
         return "\n".join(lines)
 

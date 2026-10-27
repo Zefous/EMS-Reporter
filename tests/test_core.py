@@ -149,13 +149,13 @@ def test_plain_report_generation():
     report = ReportGenerator.generate_plain_report(config, tab)
     expected_lines = [
         "Имя Фамилия | статик",
-        '"Jason Mitsui | 206277"',
+        "Jason Mitsui | 206277",
         "ПМП день (Город)",
-        '"https://drive.google.com/folder1 (10 шт - 20 б)"',
+        "https://drive.google.com/folder1 (10 шт - 20 б)",
         "ПМП ночь (Город)",
-        '"(6 шт - 18 б)"',
+        "(6 шт - 18 б)",
         "Общее количество баллов",
-        '"38"'
+        "38"
     ]
 
     for expected in expected_lines:

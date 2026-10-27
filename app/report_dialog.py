@@ -1,4 +1,4 @@
-"""Report Preview and Export Dialog with individual fields."""
+"""Report Preview and Export Dialog with individual fields (no quotes)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QCheckBox,
     QApplication,
     QMessageBox,
     QFileDialog,
@@ -26,10 +25,10 @@ from app.models import ReporterConfig, DepartmentTab
 class ReportFieldItem(QWidget):
     """Single report item with a title label, editable/copyable value, and a copy button."""
 
-    def __init__(self, title: str, raw_value: str, with_quotes: bool = True, parent=None):
+    def __init__(self, title: str, value: str, parent=None):
         super().__init__(parent)
         self.title = title
-        self.raw_value = raw_value
+        self.value = value.strip()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 8)
@@ -44,9 +43,8 @@ class ReportFieldItem(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
 
-        self.val_edit = QLineEdit()
+        self.val_edit = QLineEdit(self.value)
         self.val_edit.setStyleSheet("font-size: 13px; padding: 6px 10px; background-color: #07101b;")
-        self.set_quotes(with_quotes)
 
         self.copy_btn = QPushButton("📋 Скопировать")
         self.copy_btn.setObjectName("secondaryButton")
@@ -56,13 +54,6 @@ class ReportFieldItem(QWidget):
         row.addWidget(self.val_edit, 1)
         row.addWidget(self.copy_btn)
         layout.addLayout(row)
-
-    def set_quotes(self, with_quotes: bool):
-        val = self.raw_value.strip()
-        if with_quotes:
-            self.val_edit.setText(f'"{val}"')
-        else:
-            self.val_edit.setText(val)
 
     def get_text(self) -> str:
         return self.val_edit.text()
@@ -80,7 +71,7 @@ class ReportFieldItem(QWidget):
 
 
 class ReportPreviewDialog(QDialog):
-    """Dialog showing the department report as individual form fields."""
+    """Dialog showing the department report as individual form fields without quotes."""
 
     def __init__(
         self,
@@ -103,8 +94,8 @@ class ReportPreviewDialog(QDialog):
 
         tab_name = self.tab.title if self.tab else "Отдел"
         self.setWindowTitle(f"🚑 Формирование отчёта — {tab_name}")
-        self.resize(760, 640)
-        self.setMinimumSize(600, 480)
+        self.resize(760, 600)
+        self.setMinimumSize(600, 460)
 
         self.field_items: List[ReportFieldItem] = []
         self.setup_ui()
@@ -130,22 +121,13 @@ class ReportPreviewDialog(QDialog):
 
         desc_lbl = QLabel(
             "Поля отчёта созданы автоматически на основе настроек отдела. "
-            "Вы можете скопировать каждое поле отдельно или весь отчёт целиком."
+            "Вы можете скопировать каждое поле отдельно для формы или весь отчёт целиком."
         )
         desc_lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
 
         h_layout.addWidget(title_lbl)
         h_layout.addWidget(desc_lbl)
         layout.addWidget(header_frame)
-
-        # Options row
-        opt_layout = QHBoxLayout()
-        self.quotes_chk = QCheckBox('Заключать содержимое в кавычки "" (например: "Jason Mitsui | 206277")')
-        self.quotes_chk.setChecked(True)
-        self.quotes_chk.stateChanged.connect(self.on_quotes_toggled)
-        opt_layout.addWidget(self.quotes_chk)
-        opt_layout.addStretch()
-        layout.addLayout(opt_layout)
 
         # Scroll Area for fields
         self.scroll = QScrollArea()
@@ -186,14 +168,12 @@ class ReportPreviewDialog(QDialog):
         layout.addLayout(footer_layout)
 
     def populate_fields(self):
-        """Build all report fields for current department."""
+        """Build all report fields for current department without quotes."""
         # Clear existing
         for item in self.field_items:
             self.items_layout.removeWidget(item)
             item.deleteLater()
         self.field_items.clear()
-
-        with_quotes = self.quotes_chk.isChecked()
 
         # 1. First Field: Player Name | Static ID
         name = self.config.player_name.strip() if self.config.player_name else ""
@@ -207,7 +187,7 @@ class ReportPreviewDialog(QDialog):
         else:
             player_info = "Имя Фамилия | статик"
 
-        first_item = ReportFieldItem("Имя Фамилия | статик", player_info, with_quotes, self.scroll_content)
+        first_item = ReportFieldItem("Имя Фамилия | статик", player_info, self.scroll_content)
         self.items_layout.addWidget(first_item)
         self.field_items.append(first_item)
 
@@ -215,7 +195,7 @@ class ReportPreviewDialog(QDialog):
         if self.tab and self.tab.fields:
             for field in self.tab.fields:
                 entry_val = field.format_report_entry()
-                item = ReportFieldItem(field.name, entry_val, with_quotes, self.scroll_content)
+                item = ReportFieldItem(field.name, entry_val, self.scroll_content)
                 self.items_layout.addWidget(item)
                 self.field_items.append(item)
         else:
@@ -227,23 +207,18 @@ class ReportPreviewDialog(QDialog):
         tot_pts = self.tab.total_points() if self.tab else 0.0
         pts_str = f"{int(tot_pts)}" if tot_pts.is_integer() else f"{tot_pts:.1f}"
 
-        last_item = ReportFieldItem("Общее количество баллов", pts_str, with_quotes, self.scroll_content)
+        last_item = ReportFieldItem("Общее количество баллов", pts_str, self.scroll_content)
         self.items_layout.addWidget(last_item)
         self.field_items.append(last_item)
 
         self.items_layout.addStretch()
 
-    def on_quotes_toggled(self, state: int):
-        with_quotes = self.quotes_chk.isChecked()
-        for item in self.field_items:
-            item.set_quotes(with_quotes)
-
     def assemble_full_report_text(self) -> str:
-        """Assemble full report text in the format:
+        """Assemble full report text in plain format (no quotes):
         Title 1
-        "Value 1"
+        Value 1
         Title 2
-        "Value 2"
+        Value 2
         ...
         """
         lines = []

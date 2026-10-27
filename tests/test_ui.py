@@ -121,30 +121,23 @@ def test_report_dialog_individual_fields(qapp):
 
         # Field 1: Player info
         assert dlg.field_items[0].title == "Имя Фамилия | статик"
-        assert dlg.field_items[0].get_text() == '"Jason Mitsui | 206277"'
+        assert dlg.field_items[0].get_text() == 'Jason Mitsui | 206277'
 
         # Field 2: Cloud link + status
         assert dlg.field_items[1].title == "ПМП день (Город)"
-        assert dlg.field_items[1].get_text() == '"https://drive.google.com/folder1 (10 шт - 20 б)"'
+        assert dlg.field_items[1].get_text() == 'https://drive.google.com/folder1 (10 шт - 20 б)'
 
         # Field 3: Without cloud link
         assert dlg.field_items[2].title == "ПМП ночь (Город)"
-        assert dlg.field_items[2].get_text() == '"(6 шт - 18 б)"'
+        assert dlg.field_items[2].get_text() == '(6 шт - 18 б)'
 
         # Field 4: Total points
         assert dlg.field_items[3].title == "Общее количество баллов"
-        assert dlg.field_items[3].get_text() == '"38"'
+        assert dlg.field_items[3].get_text() == '38'
 
         # Test copying individual item
         dlg.field_items[1].copy_value()
-        assert QApplication.clipboard().text() == '"https://drive.google.com/folder1 (10 шт - 20 б)"'
-
-        # Test toggling quotes off
-        dlg.quotes_chk.setChecked(False)
-        assert dlg.field_items[0].get_text() == 'Jason Mitsui | 206277'
-        assert dlg.field_items[1].get_text() == 'https://drive.google.com/folder1 (10 шт - 20 б)'
-        assert dlg.field_items[2].get_text() == '(6 шт - 18 б)'
-        assert dlg.field_items[3].get_text() == '38'
+        assert QApplication.clipboard().text() == 'https://drive.google.com/folder1 (10 шт - 20 б)'
 
         # Test copying entire report text
         dlg.copy_all_report()
