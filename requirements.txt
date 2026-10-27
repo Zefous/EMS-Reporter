@@ -1,0 +1,7 @@
+# EMS Reporter - Majestic GTA V RP
+# Зависимости для запуска программы
+# Требуется Python >= 3.10
+
+PySide6-Essentials>=6.6.0
+pydantic>=2.7.0
+pytest>=8.0.0
