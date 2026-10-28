@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -14,13 +15,21 @@ from app.templates import create_default_config
 DEFAULT_CONFIG_FILENAME = "ems_config.json"
 
 
+def get_default_config_path() -> Path:
+    """Get path to ems_config.json (next to executable when frozen, or cwd)."""
+    if getattr(sys, "frozen", False):
+        base = Path(sys.executable).resolve().parent
+    else:
+        base = Path.cwd()
+    return (base / DEFAULT_CONFIG_FILENAME).resolve()
+
+
 class ConfigManager:
     """Manages loading, saving, importing, and exporting config files."""
 
     def __init__(self, filepath: Optional[str] = None):
         if filepath is None:
-            # Place ems_config.json in the current working directory or user folder
-            self.filepath = Path(DEFAULT_CONFIG_FILENAME).resolve()
+            self.filepath = get_default_config_path()
         else:
             self.filepath = Path(filepath).resolve()
 

@@ -9,6 +9,7 @@ from typing import Optional, Dict
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
+    QApplication,
     QMainWindow,
     QWidget,
     QVBoxLayout,
@@ -42,18 +43,40 @@ class MainWindow(QMainWindow):
         self.tab_widgets: Dict[str, TabPageWidget] = {}
 
         self.setWindowTitle("EMS Reporter - Majestic GTA V RP")
-        self.resize(1160, 750)
-        self.setMinimumSize(920, 560)
-
         self.setup_ui()
         self.rebuild_tabs()
         self.update_totals()
+        self.center_and_fit_screen()
 
         # Background auto-refresh timer for folder screenshot counts
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self.auto_refresh_folders)
         if self.config.auto_refresh_seconds > 0:
             self.refresh_timer.start(self.config.auto_refresh_seconds * 1000)
+
+    def center_and_fit_screen(self):
+        """Fit window cleanly within the screen work area and center it."""
+        screen = QApplication.primaryScreen()
+        if not screen:
+            self.resize(1100, 700)
+            return
+
+        avail = screen.availableGeometry()
+
+        # Usable screen bounds with safe margins
+        max_w = max(600, avail.width() - 40)
+        max_h = max(400, avail.height() - 40)
+
+        target_w = min(1140, max_w)
+        target_h = min(720, max_h)
+
+        self.setMinimumSize(min(760, max_w), min(480, max_h))
+        self.resize(target_w, target_h)
+
+        # Center firmly inside the visible screen bounds (never negative coordinates)
+        x = avail.x() + max(0, (avail.width() - target_w) // 2)
+        y = avail.y() + max(0, (avail.height() - target_h) // 2)
+        self.move(max(avail.x(), x), max(avail.y(), y))
 
     def setup_ui(self):
         central_widget = QWidget()
