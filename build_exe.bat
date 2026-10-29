@@ -1,15 +1,14 @@
 @echo off
-chcp 65001 >nul
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
-title Сборка EMS Reporter в .EXE
+title Build EMS Reporter Standalone EXE
 
 echo ========================================================
-echo        СБОРКА EMS REPORTER В АВТОНОМНЫЙ .EXE
+echo        BUILD EMS REPORTER STANDALONE EXE
 echo ========================================================
 echo.
 
-:: 1. Ищем Python
+:: 1. Locate Python
 set "PY_CMD="
 if exist "%~dp0.venv\Scripts\python.exe" (
     set "PY_CMD=%~dp0.venv\Scripts\python.exe"
@@ -23,19 +22,19 @@ if exist "%~dp0.venv\Scripts\python.exe" (
 )
 
 if not defined PY_CMD (
-    echo [ОШИБКА] Python не найден в системе.
-    echo Пожалуйста, установите Python 3.10+ с сайта https://www.python.org/
-    echo Обязательно отметьте "Add python.exe to PATH".
+    echo [ERROR] Python not found in system PATH.
+    echo Please install Python 3.10+ from https://www.python.org/
+    echo IMPORTANT: Make sure to check "Add python.exe to PATH".
     pause
     exit /b 1
 )
 
-:: 2. Создаём .venv если его ещё нет
+:: 2. Create virtual environment if missing
 if not exist "%~dp0.venv\Scripts\python.exe" (
-    echo [ИНФО] Создание виртуального окружения (.venv)...
+    echo [INFO] Creating virtual environment (.venv)...
     %PY_CMD% -m venv "%~dp0.venv"
     if errorlevel 1 (
-        echo [ОШИБКА] Не удалось создать .venv
+        echo [ERROR] Failed to create .venv
         pause
         exit /b 1
     )
@@ -43,42 +42,42 @@ if not exist "%~dp0.venv\Scripts\python.exe" (
 
 set "VENV_PY=%~dp0.venv\Scripts\python.exe"
 
-:: 3. Проверяем и устанавливаем зависимости
-echo [1/3] Проверка и установка зависимостей...
+:: 3. Verify and install dependencies
+echo [1/3] Checking and installing dependencies...
 "%VENV_PY%" -m pip install --upgrade pip
 "%VENV_PY%" -m pip install -r "%~dp0requirements.txt"
 if errorlevel 1 (
-    echo [ОШИБКА] Не удалось установить зависимости.
+    echo [ERROR] Failed to install dependencies.
     pause
     exit /b 1
 )
 
-:: 4. Очищаем старые сборки
-echo [2/3] Очистка предыдущих сборок (build, dist)...
+:: 4. Clean previous builds
+echo [2/3] Cleaning previous build artifacts (build, dist)...
 if exist "%~dp0build" rd /s /q "%~dp0build"
 if exist "%~dp0dist" rd /s /q "%~dp0dist"
 
-:: 5. Компилируем .exe
-echo [3/3] Компиляция приложения в один исполняемый файл...
+:: 5. Compile standalone executable
+echo [3/3] Compiling application into standalone executable...
 "%VENV_PY%" -m PyInstaller --clean "%~dp0EMS_Reporter.spec"
 
 if not exist "%~dp0dist\EMS_Reporter.exe" (
     echo.
-    echo [ОШИБКА] Сборка не удалась.
+    echo [ERROR] Build failed. EMS_Reporter.exe was not created.
     pause
     exit /b 1
 )
 
 echo.
 echo ========================================================
-echo  [УСПЕХ] Сборка успешно завершена!
+echo  [SUCCESS] Build finished successfully!
 echo.
-echo  Готовый файл для отправки:
+echo  Standalone output file:
 echo  dist\EMS_Reporter.exe
 echo.
-echo  Этот файл работает самостоятельно на любом Windows ПК:
-echo  - Python устанавливать другим людям НЕ нужно!
-echo  - Все библиотеки и иконка уже зашиты внутрь .exe!
+echo  This file runs independently on any Windows PC:
+echo  - Other users do NOT need Python installed.
+echo  - All libraries and icons are bundled into .exe!
 echo ========================================================
 echo.
 

@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 title EMS Reporter - Majestic GTA V RP
@@ -20,40 +19,40 @@ if not defined PY_CMD (
 )
 
 if not defined PY_CMD (
-    echo [ERROR] Python не найден в системе.
-    echo Пожалуйста, установите Python 3.10+ с официального сайта: https://www.python.org/
-    echo ВАЖНО: При установке обязательно отметьте галочку "Add python.exe to PATH".
+    echo [ERROR] Python not found in system PATH.
+    echo Please install Python 3.10+ from https://www.python.org/
+    echo IMPORTANT: Make sure to check "Add python.exe to PATH" during installation.
     echo.
     pause
     exit /b 1
 )
 
 :: 3. Create virtual environment
-echo [INFO] Создание виртуального окружения (.venv)...
+echo [INFO] Creating virtual environment (.venv)...
 %PY_CMD% -m venv "%~dp0.venv"
 if errorlevel 1 (
-    echo [ERROR] Не удалось создать виртуальное окружение в %~dp0.venv
+    echo [ERROR] Failed to create virtual environment in %~dp0.venv
     pause
     exit /b 1
 )
 
 :: 4. Install dependencies
-echo [INFO] Установка зависимостей...
+echo [INFO] Installing required dependencies...
 "%~dp0.venv\Scripts\python.exe" -m pip install --upgrade pip
 "%~dp0.venv\Scripts\python.exe" -m pip install -r "%~dp0requirements.txt"
 if errorlevel 1 (
-    echo [ERROR] Не удалось установить пакеты из requirements.txt
+    echo [ERROR] Failed to install packages from requirements.txt
     pause
     exit /b 1
 )
 
 :: 5. Launch application
-echo [INFO] Запуск EMS Reporter...
+echo [INFO] Launching EMS Reporter...
 "%~dp0.venv\Scripts\python.exe" "%~dp0run.py"
 
 :end
 if errorlevel 1 (
     echo.
-    echo [ERROR] Программа завершилась с ошибкой %errorlevel%.
+    echo [ERROR] Application exited with code %errorlevel%.
     pause
 )
