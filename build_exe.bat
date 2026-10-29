@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 title Сборка EMS Reporter в .EXE

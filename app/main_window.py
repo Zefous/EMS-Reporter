@@ -43,6 +43,7 @@ class MainWindow(QMainWindow):
         self.tab_widgets: Dict[str, TabPageWidget] = {}
 
         self.setWindowTitle("EMS Reporter - Majestic GTA V RP")
+        self._centered_on_screen = False
         self.setup_ui()
         self.rebuild_tabs()
         self.update_totals()
@@ -54,9 +55,15 @@ class MainWindow(QMainWindow):
         if self.config.auto_refresh_seconds > 0:
             self.refresh_timer.start(self.config.auto_refresh_seconds * 1000)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._centered_on_screen:
+            self._centered_on_screen = True
+            self.center_and_fit_screen()
+
     def center_and_fit_screen(self):
         """Fit window cleanly within the screen work area and center it."""
-        screen = QApplication.primaryScreen()
+        screen = self.screen() or QApplication.primaryScreen()
         if not screen:
             self.resize(1100, 700)
             return
@@ -76,7 +83,7 @@ class MainWindow(QMainWindow):
         # Center firmly inside the visible screen bounds (never negative coordinates)
         x = avail.x() + max(0, (avail.width() - target_w) // 2)
         y = avail.y() + max(0, (avail.height() - target_h) // 2)
-        self.move(max(avail.x(), x), max(avail.y(), y))
+        self.setGeometry(max(avail.x(), x), max(avail.y(), y), target_w, target_h)
 
     def setup_ui(self):
         central_widget = QWidget()

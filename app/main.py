@@ -16,19 +16,6 @@ from app.main_window import MainWindow
 
 def main():
     """Main startup procedure."""
-    # Windows Per-Monitor High-DPI Awareness (prevents window overflow and blurry scaling)
-    if sys.platform == "win32":
-        try:
-            import ctypes
-            # 2 = PROCESS_PER_MONITOR_DPI_AWARE_V2
-            ctypes.windll.shcore.SetProcessDpiAwareness(2)
-        except Exception:
-            try:
-                import ctypes
-                ctypes.windll.user32.SetProcessDPIAware()
-            except Exception:
-                pass
-
     app = QApplication(sys.argv)
     app.setApplicationName("EMS Reporter")
     app.setOrganizationName("Majestic RP EMS")
