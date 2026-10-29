@@ -1,4 +1,4 @@
-"""Interactive card widgets for ReportField (Folder and Numeric)."""
+"""Interactive card widgets for ReportField (Folder, Numeric, and Links)."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import ReportField, FieldType
-from app.dialogs import EditFieldDialog
+from app.dialogs import EditFieldDialog, EditLinksDialog
 
 
 class FieldCardWidget(QFrame):
@@ -42,6 +42,8 @@ class FieldCardWidget(QFrame):
         # Set styling class based on type
         if field.field_type == FieldType.NUMERIC:
             self.setProperty("class", "FieldCardNumeric")
+        elif field.field_type == FieldType.LINKS:
+            self.setProperty("class", "FieldCardLinks")
         else:
             self.setProperty("class", "FieldCard")
 
@@ -61,7 +63,13 @@ class FieldCardWidget(QFrame):
         title_row = QHBoxLayout()
         title_row.setSpacing(8)
 
-        icon_text = "📁" if self.field.field_type == FieldType.FOLDER else "🔢"
+        if self.field.field_type == FieldType.FOLDER:
+            icon_text = "📁"
+        elif self.field.field_type == FieldType.NUMERIC:
+            icon_text = "🔢"
+        else:
+            icon_text = "🔗"
+
         self.icon_lbl = QLabel(icon_text)
         self.icon_lbl.setStyleSheet("font-size: 16px;")
 
@@ -98,10 +106,25 @@ class FieldCardWidget(QFrame):
             folder_row.addWidget(self.pick_folder_btn)
             folder_row.addWidget(self.open_folder_btn)
             left_layout.addLayout(folder_row)
+        elif self.field.field_type == FieldType.LINKS:
+            links_row = QHBoxLayout()
+            links_row.setSpacing(8)
+
+            self.info_lbl = QLabel()
+            self.info_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+
+            self.links_btn = QPushButton("🔗 Ссылки (0)")
+            self.links_btn.setObjectName("secondaryButton")
+            self.links_btn.setFixedHeight(26)
+            self.links_btn.setStyleSheet("font-size: 11px; padding: 2px 10px; color: #a5b4fc;")
+            self.links_btn.clicked.connect(self.open_links_dialog)
+
+            links_row.addWidget(self.info_lbl, 1)
+            links_row.addWidget(self.links_btn)
+            left_layout.addLayout(links_row)
         else:
             # Numeric field: note about points per unit
-            pts_val = f"{int(self.field.points_per_unit)}" if self.field.points_per_unit.is_integer() else f"{self.field.points_per_unit:.1f}"
-            self.info_lbl = QLabel(f"Ручной ввод данных • Ценность: {pts_val} б. за единицу")
+            self.info_lbl = QLabel()
             self.info_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
             left_layout.addWidget(self.info_lbl)
 
@@ -132,6 +155,8 @@ class FieldCardWidget(QFrame):
         self.badge_lbl.setAlignment(Qt.AlignCenter)
         if self.field.field_type == FieldType.NUMERIC:
             self.badge_lbl.setObjectName("badgeNumericScore")
+        elif self.field.field_type == FieldType.LINKS:
+            self.badge_lbl.setObjectName("badgeLinksScore")
         else:
             self.badge_lbl.setObjectName("badgeScore")
         self.badge_lbl.setFixedHeight(30)
@@ -197,7 +222,25 @@ class FieldCardWidget(QFrame):
     def update_info_label(self):
         if hasattr(self, "info_lbl"):
             pts_val = f"{int(self.field.points_per_unit)}" if self.field.points_per_unit.is_integer() else f"{self.field.points_per_unit:.1f}"
-            self.info_lbl.setText(f"Ручной ввод данных • Ценность: {pts_val} б. за единицу")
+            if self.field.field_type == FieldType.LINKS:
+                count = len(self.field.get_clean_links())
+                self.info_lbl.setText(f"Ссылки на сообщения • Введено: {count} шт. • Ценность: {pts_val} б/ссылка")
+                if hasattr(self, "links_btn"):
+                    self.links_btn.setText(f"🔗 Ссылки ({count})")
+            else:
+                self.info_lbl.setText(f"Ручной ввод данных • Ценность: {pts_val} б. за единицу")
+
+    def open_links_dialog(self):
+        dlg = EditLinksDialog(
+            self,
+            field_name=self.field.name,
+            links=self.field.links,
+            points_per_unit=self.field.points_per_unit
+        )
+        if dlg.exec():
+            self.field.links = dlg.result_links
+            self.refresh_display()
+            self.changed.emit()
 
     def select_folder(self):
         curr = self.field.folder_path if os.path.exists(self.field.folder_path) else ""
@@ -239,6 +282,7 @@ class FieldCardWidget(QFrame):
                 self.field.folder_path = rf.folder_path
                 self.field.points_per_unit = rf.points_per_unit
                 self.field.manual_count = rf.manual_count
+                self.field.links = rf.links
                 self.field.cloud_link = rf.cloud_link
                 self.title_lbl.setText(self.field.name)
                 self.refresh_display()

@@ -1,4 +1,4 @@
-"""Script to generate a full visual preview of EMS Reporter with updated requirements."""
+"""Script to generate a full visual preview of EMS Reporter with links field."""
 
 import os
 import shutil
@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication
 
 from app.main_window import MainWindow
 from app.report_dialog import ReportPreviewDialog
+from app.dialogs import EditLinksDialog
 from app.theme import MEDICAL_QSS
 from app.models import ReportField, FieldType
 
@@ -42,7 +43,12 @@ def create_demo_screenshot():
     win.static_edit.setText("206277")
     win.rank_edit.setText("Paramedic")
 
-    # Add demo fields to PM tab (simulating user-created fields)
+    discord_links = [
+        "https://discord.com/channels/104928192837/104928192838/1298371928374",
+        "https://discord.com/channels/104928192837/104928192838/1298371928375"
+    ]
+
+    # Add demo fields to PM tab (folder, numeric, and discord links)
     pm_tab = win.config.tabs[0]
     pm_tab.fields = [
         ReportField(
@@ -59,7 +65,7 @@ def create_demo_screenshot():
             field_type=FieldType.FOLDER,
             folder_path=str(night_city),
             points_per_unit=3.0,
-            cloud_link=""  # No cloud link
+            cloud_link=""
         ),
         ReportField(
             id="fld-3",
@@ -67,6 +73,14 @@ def create_demo_screenshot():
             field_type=FieldType.NUMERIC,
             points_per_unit=5.0,
             manual_count=2,
+            cloud_link=""
+        ),
+        ReportField(
+            id="fld-4",
+            name="Отчёты в спец. связи (Discord)",
+            field_type=FieldType.LINKS,
+            points_per_unit=5.0,
+            links=discord_links,
             cloud_link=""
         ),
     ]
@@ -85,9 +99,24 @@ def create_demo_screenshot():
     pix.save(screenshot_path)
     print(f"Preview saved to {screenshot_path}")
 
+    # Render EditLinksDialog preview
+    links_dlg = EditLinksDialog(
+        field_name="Отчёты в спец. связи (Discord)",
+        links=discord_links,
+        points_per_unit=5.0
+    )
+    links_dlg.resize(700, 520)
+    links_dlg.show()
+    app.processEvents()
+    links_pix = links_dlg.grab()
+    links_path = "/home/burmalda/Кирилл/EMS reporter/links_dialog_preview.png"
+    links_pix.save(links_path)
+    print(f"Links dialog preview saved to {links_path}")
+    links_dlg.close()
+
     # Render ReportPreviewDialog with individual fields
     report_dlg = ReportPreviewDialog(win.config, tab=pm_tab)
-    report_dlg.resize(760, 600)
+    report_dlg.resize(780, 640)
     report_dlg.show()
     app.processEvents()
 

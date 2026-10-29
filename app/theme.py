@@ -125,6 +125,20 @@ QTabBar::tab:hover:!selected {
     background-color: #12273e;
 }
 
+.FieldCardLinks {
+    background-color: #102235;
+    border: 1px solid #1c3652;
+    border-left: 4px solid #6366f1;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.FieldCardLinks:hover {
+    border-color: #4f46e5;
+    border-left: 4px solid #818cf8;
+    background-color: #12273e;
+}
+
 /* Badges */
 #badgeScore {
     background-color: #0f3747;
@@ -150,6 +164,18 @@ QTabBar::tab:hover:!selected {
     selection-color: #ffffff;
 }
 
+#badgeLinksScore {
+    background-color: #1e1b4b;
+    color: #a5b4fc;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #6366f1;
+    selection-background-color: #4f46e5;
+    selection-color: #ffffff;
+}
+
 QLineEdit#badgeScore:focus {
     border: 1px solid #38bdf8;
     background-color: #123d50;
@@ -158,6 +184,11 @@ QLineEdit#badgeScore:focus {
 QLineEdit#badgeNumericScore:focus {
     border: 1px solid #34d399;
     background-color: #0f4233;
+}
+
+QLineEdit#badgeLinksScore:focus {
+    border: 1px solid #818cf8;
+    background-color: #2e2a72;
 }
 
 /* Buttons */

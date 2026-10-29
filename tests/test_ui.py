@@ -13,6 +13,7 @@ from app.main_window import MainWindow
 from app.theme import MEDICAL_QSS
 from app.report_dialog import ReportPreviewDialog, ReportFieldItem
 from app.field_widget import FieldCardWidget
+from app.dialogs import EditLinksDialog
 
 
 @pytest.fixture(scope="session")
@@ -150,3 +151,35 @@ def test_report_dialog_individual_fields(qapp):
 
         dlg.close()
         window.close()
+
+
+def test_links_card_and_edit_dialog(qapp):
+    """Verify links field card and EditLinksDialog work in GUI."""
+    field = ReportField(
+        id="lnk-gui",
+        name="Отчёты в спец. связи (Discord)",
+        field_type=FieldType.LINKS,
+        points_per_unit=4.0,
+        links=["https://discord.com/1", "https://discord.com/2"]
+    )
+    card = FieldCardWidget(field)
+
+    assert card.badge_lbl.text() == "(2 шт - 8 б)"
+    assert "Введено: 2 шт." in card.info_lbl.text()
+    assert card.links_btn.text() == "🔗 Ссылки (2)"
+
+    # Test EditLinksDialog
+    dlg = EditLinksDialog(parent=card, field_name=field.name, links=field.links, points_per_unit=field.points_per_unit)
+    assert "Ссылок: 2 шт." in dlg.stats_lbl.text()
+    assert "8 б." in dlg.stats_lbl.text()
+
+    # Add a third link in the editor
+    dlg.editor.appendPlainText("https://discord.com/3")
+    assert "Ссылок: 3 шт." in dlg.stats_lbl.text()
+    assert "12 б." in dlg.stats_lbl.text()
+
+    dlg.validate_and_save()
+    assert len(dlg.result_links) == 3
+
+    card.deleteLater()
+    qapp.processEvents()

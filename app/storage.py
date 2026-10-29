@@ -74,17 +74,17 @@ class ReportGenerator:
     """Generates formatted reports for Majestic RP."""
 
     @staticmethod
-    def generate_plain_report(config: ReporterConfig, tab: DepartmentTab) -> str:
+    def generate_plain_report(config: ReporterConfig, tab: DepartmentTab, join_with_newline: bool = True) -> str:
         """Generate plain text report for the active department tab.
 
         Format:
         Имя Фамилия | статик
-        "Jason Mitsui | 206277"
+        Jason Mitsui | 206277
         Название поля 1
-        "ссылка (10 шт - 20 б)"
+        ссылка (10 шт - 20 б)
         ...
         Общее количество баллов
-        "38"
+        38
         """
         lines = []
 
@@ -106,7 +106,7 @@ class ReportGenerator:
         # 2. Fields in the active tab
         for field in tab.fields:
             lines.append(field.name)
-            entry = field.format_report_entry()
+            entry = field.format_report_entry(join_with_newline=join_with_newline)
             lines.append(entry)
 
         # 3. Total points for the active tab

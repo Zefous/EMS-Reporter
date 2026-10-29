@@ -1,4 +1,4 @@
-"""Report Preview and Export Dialog with individual fields (no quotes)."""
+"""Report Preview and Export Dialog with individual fields (no quotes, multi-line support)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPlainTextEdit,
     QPushButton,
+    QCheckBox,
     QApplication,
     QMessageBox,
     QFileDialog,
@@ -43,23 +45,42 @@ class ReportFieldItem(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
 
-        self.val_edit = QLineEdit(self.value)
-        self.val_edit.setStyleSheet("font-size: 13px; padding: 6px 10px; background-color: #07101b;")
+        if "\n" in self.value:
+            self.editor = QPlainTextEdit(self.value)
+            line_cnt = len(self.value.splitlines())
+            h = min(180, max(65, line_cnt * 20 + 22))
+            self.editor.setFixedHeight(h)
+            self.editor.setStyleSheet(
+                "font-family: 'Consolas', monospace; font-size: 12px; padding: 6px 10px; background-color: #07101b;"
+            )
+            row.addWidget(self.editor, 1)
+        else:
+            self.editor = QLineEdit(self.value)
+            self.editor.setStyleSheet("font-size: 13px; padding: 6px 10px; background-color: #07101b;")
+            row.addWidget(self.editor, 1)
 
         self.copy_btn = QPushButton("📋 Скопировать")
         self.copy_btn.setObjectName("secondaryButton")
         self.copy_btn.setFixedWidth(130)
         self.copy_btn.clicked.connect(self.copy_value)
 
-        row.addWidget(self.val_edit, 1)
         row.addWidget(self.copy_btn)
         layout.addLayout(row)
 
     def get_text(self) -> str:
-        return self.val_edit.text()
+        if isinstance(self.editor, QPlainTextEdit):
+            return self.editor.toPlainText().strip()
+        return self.editor.text().strip()
+
+    def set_text(self, text: str):
+        self.value = text.strip()
+        if isinstance(self.editor, QPlainTextEdit):
+            self.editor.setPlainText(self.value)
+        else:
+            self.editor.setText(self.value)
 
     def copy_value(self):
-        text = self.val_edit.text()
+        text = self.get_text()
         QApplication.clipboard().setText(text)
         self.copy_btn.setText("✓ Скопировано!")
         self.copy_btn.setStyleSheet("background-color: #059669; color: white;")
@@ -94,7 +115,7 @@ class ReportPreviewDialog(QDialog):
 
         tab_name = self.tab.title if self.tab else "Отдел"
         self.setWindowTitle(f"🚑 Формирование отчёта — {tab_name}")
-        self.resize(760, 600)
+        self.resize(780, 620)
         self.setMinimumSize(600, 460)
 
         self.field_items: List[ReportFieldItem] = []
@@ -128,6 +149,15 @@ class ReportPreviewDialog(QDialog):
         h_layout.addWidget(title_lbl)
         h_layout.addWidget(desc_lbl)
         layout.addWidget(header_frame)
+
+        # Options row
+        opt_layout = QHBoxLayout()
+        self.newline_links_chk = QCheckBox("Несколько ссылок выводить построчно (каждая с новой строки)")
+        self.newline_links_chk.setChecked(True)
+        self.newline_links_chk.stateChanged.connect(self.populate_fields)
+        opt_layout.addWidget(self.newline_links_chk)
+        opt_layout.addStretch()
+        layout.addLayout(opt_layout)
 
         # Scroll Area for fields
         self.scroll = QScrollArea()
@@ -175,6 +205,8 @@ class ReportPreviewDialog(QDialog):
             item.deleteLater()
         self.field_items.clear()
 
+        join_nl = self.newline_links_chk.isChecked()
+
         # 1. First Field: Player Name | Static ID
         name = self.config.player_name.strip() if self.config.player_name else ""
         static = self.config.player_static.strip() if self.config.player_static else ""
@@ -194,7 +226,7 @@ class ReportPreviewDialog(QDialog):
         # 2. Intermediate Fields from the active tab
         if self.tab and self.tab.fields:
             for field in self.tab.fields:
-                entry_val = field.format_report_entry()
+                entry_val = field.format_report_entry(join_with_newline=join_nl)
                 item = ReportFieldItem(field.name, entry_val, self.scroll_content)
                 self.items_layout.addWidget(item)
                 self.field_items.append(item)

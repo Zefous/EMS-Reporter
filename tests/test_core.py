@@ -77,6 +77,38 @@ def test_cloud_link_format_report_entry():
     assert f2.format_report_entry() == "https://drive.google.com/drive/folders/test12345 (10 шт - 20 б)"
 
 
+def test_links_field_calculation_and_report():
+    """Verify links field counts non-empty links and calculates points properly."""
+    f = ReportField(
+        id="lnk-1",
+        name="Отчёт в Discord",
+        field_type=FieldType.LINKS,
+        points_per_unit=5.0,
+        links=[
+            "https://discord.com/channels/1/2/3",
+            "   ",  # Empty line should be ignored
+            "https://discord.com/channels/1/2/4",
+            "https://discord.com/channels/1/2/5"
+        ]
+    )
+
+    assert f.get_count() == 3
+    assert f.calculate_points() == 15.0
+    assert f.format_status_text() == "(3 шт - 15 б)"
+
+    # Report entry with newlines
+    entry_nl = f.format_report_entry(join_with_newline=True)
+    assert "https://discord.com/channels/1/2/3" in entry_nl
+    assert "https://discord.com/channels/1/2/5" in entry_nl
+    assert "(3 шт - 15 б)" in entry_nl
+    assert "\n" in entry_nl
+
+    # Report entry single line
+    entry_sl = f.format_report_entry(join_with_newline=False)
+    assert "\n" not in entry_sl
+    assert "(3 шт - 15 б)" in entry_sl
+
+
 def test_default_config_has_empty_fields():
     """Verify default tabs exist (PM, DI, PSED, HAD) and have no pre-created fields."""
     config = create_default_config()
