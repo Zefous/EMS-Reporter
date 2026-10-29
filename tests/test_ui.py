@@ -13,7 +13,7 @@ from app.main_window import MainWindow
 from app.theme import MEDICAL_QSS
 from app.report_dialog import ReportPreviewDialog, ReportFieldItem
 from app.field_widget import FieldCardWidget
-from app.dialogs import EditLinksDialog
+from app.dialogs import EditLinksDialog, EditFieldDialog
 
 
 @pytest.fixture(scope="session")
@@ -182,4 +182,54 @@ def test_links_card_and_edit_dialog(qapp):
     assert len(dlg.result_links) == 3
 
     card.deleteLater()
+    qapp.processEvents()
+
+
+def test_field_type_switch_updates_icon_and_card(qapp):
+    """Verify icon and card layout update when field_type changes."""
+    field = ReportField(
+        id="f-icon-test",
+        name="Тестовое поле",
+        field_type=FieldType.FOLDER,
+        folder_path="",
+        points_per_unit=2.0
+    )
+    card = FieldCardWidget(field)
+    assert card.icon_lbl.text() == "📁"
+
+    # Switch to LINKS
+    field.field_type = FieldType.LINKS
+    card.refresh_display()
+    assert card.icon_lbl.text() == "🔗"
+
+    # Switch to NUMERIC
+    field.field_type = FieldType.NUMERIC
+    card.refresh_display()
+    assert card.icon_lbl.text() == "🔢"
+
+    card.deleteLater()
+    qapp.processEvents()
+
+
+def test_edit_field_dialog_cloud_link_hidden_for_links(qapp):
+    """Verify cloud storage link input is hidden for LINKS field type."""
+    dlg = EditFieldDialog()
+    dlg.show()
+
+    # Default is FOLDER -> cloud link should be visible
+    assert dlg.cloud_link_container.isVisible() is True
+
+    # Switch to LINKS -> cloud link must be hidden
+    dlg.type_combo.setCurrentIndex(2)  # FieldType.LINKS
+    assert dlg.type_combo.currentData() == FieldType.LINKS
+    assert dlg.cloud_link_container.isVisible() is False
+
+    # Switch back to NUMERIC -> cloud link should be visible again
+    dlg.type_combo.setCurrentIndex(1)  # FieldType.NUMERIC
+    assert dlg.type_combo.currentData() == FieldType.NUMERIC
+    assert dlg.cloud_link_container.isVisible() is True
+
+    dlg.close()
+    dlg.deleteLater()
+    qapp.processEvents()
     qapp.processEvents()

@@ -126,6 +126,7 @@ class TabPageWidget(QWidget):
         for f in self.tab.fields:
             card = FieldCardWidget(f, self.scroll_content)
             card.changed.connect(self.on_field_changed)
+            card.type_changed.connect(self.rebuild_fields)
             card.deleted.connect(self.on_field_deleted)
             card.moved_up.connect(self.on_field_moved_up)
             card.moved_down.connect(self.on_field_moved_down)

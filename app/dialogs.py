@@ -274,8 +274,11 @@ class EditFieldDialog(QDialog):
         pts_layout.addWidget(self.points_spin)
         layout.addLayout(pts_layout)
 
-        # Cloud Link (Optional, for all field types)
-        link_layout = QVBoxLayout()
+        # Cloud Link (Optional for FOLDER and NUMERIC, hidden for LINKS)
+        self.cloud_link_container = QFrame()
+        link_layout = QVBoxLayout(self.cloud_link_container)
+        link_layout.setContentsMargins(0, 0, 0, 0)
+        link_layout.setSpacing(4)
         link_lbl = QLabel("Ссылка на облачное хранилище (Google Диск, Imgur и др., необязательно):")
         link_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
         self.cloud_link_edit = QLineEdit()
@@ -285,7 +288,7 @@ class EditFieldDialog(QDialog):
         link_layout.addWidget(link_lbl)
         link_layout.addWidget(self.cloud_link_edit)
         link_layout.addWidget(link_hint)
-        layout.addLayout(link_layout)
+        layout.addWidget(self.cloud_link_container)
 
         # Dialog Buttons
         btn_layout = QHBoxLayout()
@@ -309,16 +312,19 @@ class EditFieldDialog(QDialog):
             self.folder_container.show()
             self.numeric_container.hide()
             self.links_container.hide()
+            self.cloud_link_container.show()
             self.pts_lbl.setText("Баллов за 1 скриншот:")
         elif ft == FieldType.NUMERIC:
             self.folder_container.hide()
             self.numeric_container.show()
             self.links_container.hide()
+            self.cloud_link_container.show()
             self.pts_lbl.setText("Баллов за 1 единицу действия:")
         elif ft == FieldType.LINKS:
             self.folder_container.hide()
             self.numeric_container.hide()
             self.links_container.show()
+            self.cloud_link_container.hide()
             self.pts_lbl.setText("Баллов за 1 ссылку на сообщение:")
 
     def choose_folder(self):
@@ -356,7 +362,7 @@ class EditFieldDialog(QDialog):
         folder = self.folder_edit.text().strip() if ft == FieldType.FOLDER else ""
         manual = self.manual_spin.value() if ft == FieldType.NUMERIC else 0
         links = [l.strip() for l in self.links_edit.toPlainText().splitlines() if l.strip()] if ft == FieldType.LINKS else []
-        cloud_link = self.cloud_link_edit.text().strip()
+        cloud_link = self.cloud_link_edit.text().strip() if ft != FieldType.LINKS else ""
 
         fid = self.field.id if self.field else str(uuid.uuid4())
 

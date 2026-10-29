@@ -31,6 +31,7 @@ class FieldCardWidget(QFrame):
     """Visual card for an individual report field with live updates."""
 
     changed = Signal()         # Emitted when value, path, or config changes
+    type_changed = Signal()    # Emitted when field type is switched (rebuilds card layout)
     deleted = Signal(str)      # Emitted with field_id when user deletes card
     moved_up = Signal(str)     # Emitted to reorder field up
     moved_down = Signal(str)   # Emitted to reorder field down
@@ -273,6 +274,7 @@ class FieldCardWidget(QFrame):
         self.changed.emit()
 
     def edit_field(self):
+        old_type = self.field.field_type
         dlg = EditFieldDialog(self, field=self.field)
         if dlg.exec():
             rf = dlg.result_field
@@ -284,8 +286,12 @@ class FieldCardWidget(QFrame):
                 self.field.manual_count = rf.manual_count
                 self.field.links = rf.links
                 self.field.cloud_link = rf.cloud_link
-                self.title_lbl.setText(self.field.name)
-                self.refresh_display()
+
+                if self.field.field_type != old_type:
+                    self.type_changed.emit()
+                else:
+                    self.title_lbl.setText(self.field.name)
+                    self.refresh_display()
                 self.changed.emit()
 
     def confirm_delete(self):
@@ -299,8 +305,19 @@ class FieldCardWidget(QFrame):
         if reply == QMessageBox.Yes:
             self.deleted.emit(self.field.id)
 
+    def update_icon(self):
+        if hasattr(self, "icon_lbl"):
+            if self.field.field_type == FieldType.FOLDER:
+                icon_text = "📁"
+            elif self.field.field_type == FieldType.NUMERIC:
+                icon_text = "🔢"
+            else:
+                icon_text = "🔗"
+            self.icon_lbl.setText(icon_text)
+
     def refresh_display(self):
         """Update badge text e.g. '(13 шт - 26 б)' and labels."""
+        self.update_icon()
         badge_text = self.field.format_status_text()
         self.badge_lbl.setText(badge_text)
         self.update_path_label()
