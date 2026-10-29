@@ -10,15 +10,16 @@ project_root = Path(__file__).resolve().parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-# Auto-switch to .venv python if available and not already active
-venv_windows = project_root / ".venv" / "Scripts" / "python.exe"
-venv_unix = project_root / ".venv" / "bin" / "python3"
-current_exe = Path(sys.executable).resolve()
+# Auto-switch to .venv python if running from source (not frozen in .exe)
+if not getattr(sys, "frozen", False):
+    venv_windows = (project_root / ".venv" / "Scripts" / "python.exe").resolve()
+    venv_unix = (project_root / ".venv" / "bin" / "python3").resolve()
+    current_exe = Path(sys.executable).resolve()
 
-if venv_windows.is_file() and current_exe != venv_windows.resolve():
-    sys.exit(subprocess.call([str(venv_windows)] + sys.argv[1:]))
-elif venv_unix.is_file() and current_exe != venv_unix.resolve():
-    sys.exit(subprocess.call([str(venv_unix)] + sys.argv[1:]))
+    if venv_windows.is_file() and current_exe != venv_windows:
+        sys.exit(subprocess.call([str(venv_windows), str(project_root / "run.py")] + sys.argv[1:]))
+    elif venv_unix.is_file() and current_exe != venv_unix:
+        sys.exit(subprocess.call([str(venv_unix), str(project_root / "run.py")] + sys.argv[1:]))
 
 # Verify dependencies
 missing = []

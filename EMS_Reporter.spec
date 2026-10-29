@@ -5,7 +5,7 @@ from PyInstaller.utils.hooks import collect_submodules
 block_cipher = None
 
 a = Analysis(
-    ['run.py'],
+    ['app/main.py'],
     pathex=['.'],
     binaries=[],
     datas=[
