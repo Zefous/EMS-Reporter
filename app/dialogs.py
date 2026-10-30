@@ -119,11 +119,19 @@ class EditLinksDialog(QDialog):
 
         self.save_btn = QPushButton("💾 Сохранить ссылки")
         self.save_btn.setObjectName("primaryButton")
+        self.save_btn.setDefault(True)
         self.save_btn.clicked.connect(self.validate_and_save)
 
         btn_layout.addWidget(self.cancel_btn)
         btn_layout.addWidget(self.save_btn)
         layout.addLayout(btn_layout)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if (event.modifiers() & Qt.ControlModifier) or not self.editor.hasFocus():
+                self.validate_and_save()
+                return
+        super().keyPressEvent(event)
 
     def get_lines(self) -> List[str]:
         return [line.strip() for line in self.editor.toPlainText().splitlines() if line.strip()]
@@ -296,15 +304,31 @@ class EditFieldDialog(QDialog):
 
         self.cancel_btn = QPushButton("Отмена")
         self.cancel_btn.setObjectName("secondaryButton")
+        self.cancel_btn.setAutoDefault(False)
         self.cancel_btn.clicked.connect(self.reject)
 
         self.save_btn = QPushButton("Сохранить")
         self.save_btn.setObjectName("primaryButton")
+        self.save_btn.setDefault(True)
         self.save_btn.clicked.connect(self.validate_and_save)
 
         btn_layout.addWidget(self.cancel_btn)
         btn_layout.addWidget(self.save_btn)
         layout.addLayout(btn_layout)
+
+        # Connect returnPressed on line edits
+        self.name_edit.returnPressed.connect(self.validate_and_save)
+        self.folder_edit.returnPressed.connect(self.validate_and_save)
+        self.cloud_link_edit.returnPressed.connect(self.validate_and_save)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if isinstance(self.focusWidget(), QPlainTextEdit):
+                super().keyPressEvent(event)
+                return
+            self.validate_and_save()
+            return
+        super().keyPressEvent(event)
 
     def on_type_changed(self, index: int):
         ft = self.type_combo.currentData()
@@ -380,14 +404,14 @@ class EditFieldDialog(QDialog):
 
 
 class EditTabDialog(QDialog):
-    """Dialog to create or edit a department tab."""
+    """Dialog to create or edit a tab."""
 
     def __init__(self, parent=None, tab: Optional[DepartmentTab] = None):
         super().__init__(parent)
         self.tab = tab
         self.result_tab: Optional[DepartmentTab] = None
 
-        self.setWindowTitle("Настройка вкладки отдела" if tab else "Создать новую вкладку отдела")
+        self.setWindowTitle("Настройка вкладки" if tab else "Создать новую вкладку")
         self.setFixedWidth(460)
         self.setup_ui()
 
@@ -399,31 +423,23 @@ class EditTabDialog(QDialog):
         layout.setSpacing(14)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        header = QLabel("🏥 Отдел EMS / Вкладка")
+        header = QLabel("📑 Параметры вкладки")
         header.setStyleSheet("font-size: 15px; font-weight: bold; color: #38bdf8;")
         layout.addWidget(header)
 
         # Title
-        title_lbl = QLabel("Название вкладки (отдела):")
+        title_lbl = QLabel("Название вкладки:")
         title_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
         self.title_edit = QLineEdit()
-        self.title_edit.setPlaceholderText("Например: Paramedic (PM) или Отдел интернатуры")
+        self.title_edit.setPlaceholderText("Например: Paramedic (PM) или Скорая помощь")
         layout.addWidget(title_lbl)
         layout.addWidget(self.title_edit)
 
-        # Code
-        code_lbl = QLabel("Короткий код / аббревиатура:")
-        code_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
-        self.code_edit = QLineEdit()
-        self.code_edit.setPlaceholderText("Например: PM, DI, PSED, HAD")
-        layout.addWidget(code_lbl)
-        layout.addWidget(self.code_edit)
-
         # Description
-        desc_lbl = QLabel("Описание / обязанности отдела (необязательно):")
+        desc_lbl = QLabel("Описание вкладки (необязательно):")
         desc_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
         self.desc_edit = QLineEdit()
-        self.desc_edit.setPlaceholderText("Например: Скорая медицинская помощь, выезды по вызовам")
+        self.desc_edit.setPlaceholderText("Например: Вызовы, реанимации, отчёты")
         layout.addWidget(desc_lbl)
         layout.addWidget(self.desc_edit)
 
@@ -433,19 +449,30 @@ class EditTabDialog(QDialog):
 
         self.cancel_btn = QPushButton("Отмена")
         self.cancel_btn.setObjectName("secondaryButton")
+        self.cancel_btn.setAutoDefault(False)
         self.cancel_btn.clicked.connect(self.reject)
 
         self.save_btn = QPushButton("Сохранить")
         self.save_btn.setObjectName("primaryButton")
+        self.save_btn.setDefault(True)
         self.save_btn.clicked.connect(self.validate_and_save)
 
         btn_layout.addWidget(self.cancel_btn)
         btn_layout.addWidget(self.save_btn)
         layout.addLayout(btn_layout)
 
+        # Connect returnPressed on line edits
+        self.title_edit.returnPressed.connect(self.validate_and_save)
+        self.desc_edit.returnPressed.connect(self.validate_and_save)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self.validate_and_save()
+            return
+        super().keyPressEvent(event)
+
     def load_tab_data(self, t: DepartmentTab):
         self.title_edit.setText(t.title)
-        self.code_edit.setText(t.code)
         self.desc_edit.setText(t.description)
 
     def validate_and_save(self):
@@ -455,11 +482,10 @@ class EditTabDialog(QDialog):
             self.title_edit.setFocus()
             return
 
-        code = self.code_edit.text().strip()
         desc = self.desc_edit.text().strip()
-
         tid = self.tab.id if self.tab else str(uuid.uuid4())
         fields = self.tab.fields if self.tab else []
+        code = self.tab.code if self.tab else ""
 
         self.result_tab = DepartmentTab(
             id=tid,

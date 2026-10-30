@@ -13,7 +13,7 @@ from app.main_window import MainWindow
 from app.theme import MEDICAL_QSS
 from app.report_dialog import ReportPreviewDialog, ReportFieldItem
 from app.field_widget import FieldCardWidget
-from app.dialogs import EditLinksDialog, EditFieldDialog
+from app.dialogs import EditLinksDialog, EditFieldDialog, EditTabDialog
 
 
 @pytest.fixture(scope="session")
@@ -232,4 +232,85 @@ def test_edit_field_dialog_cloud_link_hidden_for_links(qapp):
     dlg.close()
     dlg.deleteLater()
     qapp.processEvents()
+
+
+def test_active_tab_only_stats_badge(qapp):
+    """Verify top-right stats badge counts only fields from the active tab."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config_path = Path(tmp_dir) / "test_active_tab_stats.json"
+        window = MainWindow(config_path=str(config_path))
+        window.show()
+
+        tab0 = window.config.tabs[0]
+        tab1 = window.config.tabs[1]
+
+        # Tab 0: 2 items * 5 pts = 10 pts
+        tab0.fields = [
+            ReportField(id="f0", name="Действие 1", field_type=FieldType.NUMERIC, points_per_unit=5.0, manual_count=2)
+        ]
+        # Tab 1: 5 items * 10 pts = 50 pts
+        tab1.fields = [
+            ReportField(id="f1", name="Действие 2", field_type=FieldType.NUMERIC, points_per_unit=10.0, manual_count=5)
+        ]
+
+        window.rebuild_tabs()
+
+        # When Tab 0 is selected
+        window.tab_widget.setCurrentIndex(0)
+        assert "2 шт • 10 б" in window.stats_badge.text()
+
+        # Switch to Tab 1
+        window.tab_widget.setCurrentIndex(1)
+        assert "5 шт • 50 б" in window.stats_badge.text()
+
+        window.close()
+
+
+def test_edit_tab_dialog_clean_structure_and_enter_key(qapp):
+    """Verify EditTabDialog has no code/abbreviation field, and Enter key saves."""
+    from PySide6.QtGui import QKeyEvent
+
+    dlg = EditTabDialog()
+    dlg.show()
+
+    # Verify no code_edit exists
+    assert not hasattr(dlg, "code_edit")
+
+    # Enter title
+    dlg.title_edit.setText("Тестовая вкладка")
+    dlg.desc_edit.setText("Описание вкладки")
+
+    # Simulate pressing Enter
+    event = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Return, Qt.NoModifier)
+    dlg.keyPressEvent(event)
+
+    assert dlg.result_tab is not None
+    assert dlg.result_tab.title == "Тестовая вкладка"
+    assert dlg.result_tab.description == "Описание вкладки"
+
+    dlg.close()
+    dlg.deleteLater()
+    qapp.processEvents()
+
+
+def test_edit_field_dialog_enter_key(qapp):
+    """Verify EditFieldDialog executes save on Enter key."""
+    from PySide6.QtGui import QKeyEvent
+
+    dlg = EditFieldDialog()
+    dlg.show()
+
+    dlg.name_edit.setText("Тестовое поле Enter")
+    dlg.points_spin.setValue(3.5)
+
+    # Press Enter
+    event = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Return, Qt.NoModifier)
+    dlg.keyPressEvent(event)
+
+    assert dlg.result_field is not None
+    assert dlg.result_field.name == "Тестовое поле Enter"
+    assert dlg.result_field.points_per_unit == 3.5
+
+    dlg.close()
+    dlg.deleteLater()
     qapp.processEvents()

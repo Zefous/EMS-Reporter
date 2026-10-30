@@ -113,8 +113,8 @@ class ReportPreviewDialog(QDialog):
         if self.tab is None and config.tabs:
             self.tab = config.tabs[0]
 
-        tab_name = self.tab.title if self.tab else "Отдел"
-        self.setWindowTitle(f"🚑 Формирование отчёта — {tab_name}")
+        tab_name = self.tab.title if self.tab else "Вкладка"
+        self.setWindowTitle(f"🚑 Отчёт по: {tab_name}")
         self.resize(780, 620)
         self.setMinimumSize(600, 460)
 
@@ -136,12 +136,12 @@ class ReportPreviewDialog(QDialog):
         h_layout.setContentsMargins(0, 0, 0, 0)
         h_layout.setSpacing(4)
 
-        tab_title = self.tab.title if self.tab else "Не выбран"
-        title_lbl = QLabel(f"📋 Отчёт по отделу: {tab_title}")
+        tab_title = self.tab.title if self.tab else "Не выбрана"
+        title_lbl = QLabel(f"📋 Отчёт по: {tab_title}")
         title_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #38bdf8;")
 
         desc_lbl = QLabel(
-            "Поля отчёта созданы автоматически на основе настроек отдела. "
+            "Поля отчёта созданы автоматически на основе настроек вкладки. "
             "Вы можете скопировать каждое поле отдельно для формы или весь отчёт целиком."
         )
         desc_lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
@@ -265,8 +265,8 @@ class ReportPreviewDialog(QDialog):
         self.status_msg_lbl.setText("✓ Весь отчёт скопирован в буфер обмена!")
 
     def save_to_txt(self):
-        dept_code = self.tab.code if (self.tab and self.tab.code) else "EMS"
-        default_filename = f"Отчёт_{dept_code}.txt"
+        safe_title = "".join(c for c in (self.tab.title if self.tab else "EMS") if c.isalnum() or c in (" ", "_", "-")).strip()
+        default_filename = f"Отчёт_{safe_title}.txt"
 
         path, _ = QFileDialog.getSaveFileName(
             self,

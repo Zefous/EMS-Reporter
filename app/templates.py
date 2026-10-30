@@ -12,7 +12,7 @@ def create_default_config() -> ReporterConfig:
         id=str(uuid.uuid4()),
         title="Paramedic (PM)",
         code="PM",
-        description="Отдел скорой медицинской помощи (выезды, ПМП, реанимации, вызовы)",
+        description="Скорая медицинская помощь (выезды, ПМП, реанимации, вызовы)",
         fields=[]
     )
 
@@ -21,7 +21,7 @@ def create_default_config() -> ReporterConfig:
         id=str(uuid.uuid4()),
         title="Department of Internship (DI)",
         code="DI",
-        description="Отдел интернатуры и обучения персонала EMS",
+        description="Обучение персонала, экзамены, лекции",
         fields=[]
     )
 
@@ -30,7 +30,7 @@ def create_default_config() -> ReporterConfig:
         id=str(uuid.uuid4()),
         title="Psychological & Sanitary (PSED)",
         code="PSED",
-        description="Психологический и санитарно-эпидемиологический отдел",
+        description="Санитарные проверки, справки о здоровье, психологическая помощь",
         fields=[]
     )
 

@@ -63,9 +63,13 @@ class MainWindow(QMainWindow):
 
     def center_and_fit_screen(self):
         """Fit window cleanly within the screen work area and center it."""
+        if QApplication.platformName() == "offscreen":
+            self.resize(1200, 780)
+            return
+
         screen = self.screen() or QApplication.primaryScreen()
         if not screen:
-            self.resize(1100, 700)
+            self.resize(1160, 750)
             return
 
         avail = screen.availableGeometry()
@@ -74,8 +78,8 @@ class MainWindow(QMainWindow):
         max_w = max(600, avail.width() - 40)
         max_h = max(400, avail.height() - 40)
 
-        target_w = min(1140, max_w)
-        target_h = min(720, max_h)
+        target_w = min(1160, max_w)
+        target_h = min(750, max_h)
 
         self.setMinimumSize(min(760, max_w), min(480, max_h))
         self.resize(target_w, target_h)
@@ -169,7 +173,7 @@ class MainWindow(QMainWindow):
         tool_layout.setContentsMargins(0, 0, 0, 0)
         tool_layout.setSpacing(8)
 
-        self.add_tab_btn = QPushButton("➕ Добавить отдел")
+        self.add_tab_btn = QPushButton("➕ Добавить вкладку")
         self.add_tab_btn.setObjectName("primaryButton")
         self.add_tab_btn.clicked.connect(self.create_tab)
 
@@ -199,7 +203,7 @@ class MainWindow(QMainWindow):
 
         self.reset_btn = QPushButton("↺ Сброс")
         self.reset_btn.setObjectName("secondaryButton")
-        self.reset_btn.setToolTip("Восстановить стандартные отделы EMS (PM, DI, PSED, HAD)")
+        self.reset_btn.setToolTip("Восстановить стандартные вкладки (PM, DI, PSED, HAD)")
         self.reset_btn.clicked.connect(self.reset_to_default)
 
         tool_layout.addWidget(self.export_btn)
@@ -240,11 +244,7 @@ class MainWindow(QMainWindow):
             tab_page.delete_tab_requested.connect(self.delete_tab)
             tab_page.edit_tab_requested.connect(self.edit_tab)
 
-            title = tab.title
-            if tab.code and tab.code not in title:
-                title = f"{title} ({tab.code})"
-            # Escape ampersands so Qt tab bar displays '&' instead of keyboard accelerator mnemonic
-            title = title.replace("&", "&&")
+            title = tab.title.replace("&", "&&")
 
             self.tab_widget.addTab(tab_page, title)
             self.tab_widgets[tab.id] = tab_page
@@ -267,7 +267,7 @@ class MainWindow(QMainWindow):
                 self.config.active_tab_id = rt.id
                 self.rebuild_tabs()
                 self.save_current_config()
-                self.status_bar.showMessage(f"Создан новый отдел: {rt.title}", 4000)
+                self.status_bar.showMessage(f"Создана новая вкладка: {rt.title}", 4000)
 
     def edit_tab(self, tab_id: str):
         tab = next((t for t in self.config.tabs if t.id == tab_id), None)
@@ -283,7 +283,7 @@ class MainWindow(QMainWindow):
                 tab.description = rt.description
                 self.rebuild_tabs()
                 self.save_current_config()
-                self.status_bar.showMessage(f"Обновлены параметры отдела: {tab.title}", 4000)
+                self.status_bar.showMessage(f"Обновлены параметры вкладки: {tab.title}", 4000)
 
     def delete_tab(self, tab_id: str):
         tab = next((t for t in self.config.tabs if t.id == tab_id), None)
@@ -293,7 +293,7 @@ class MainWindow(QMainWindow):
         reply = QMessageBox.question(
             self,
             "Удаление вкладки",
-            f"Вы уверены, что хотите удалить отдел «{tab.title}» со всеми настроенными полями?",
+            f"Вы уверены, что хотите удалить вкладку «{tab.title}» со всеми настроенными полями?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
@@ -307,12 +307,14 @@ class MainWindow(QMainWindow):
         if 0 <= index < len(self.config.tabs):
             self.config.active_tab_id = self.config.tabs[index].id
             self.save_current_config()
+        self.update_totals()
 
     def on_tab_moved(self, from_idx: int, to_idx: int):
         if 0 <= from_idx < len(self.config.tabs) and 0 <= to_idx < len(self.config.tabs):
             moved = self.config.tabs.pop(from_idx)
             self.config.tabs.insert(to_idx, moved)
             self.save_current_config()
+        self.update_totals()
 
     def on_player_info_changed(self):
         self.config.player_name = self.name_edit.text()
@@ -325,10 +327,16 @@ class MainWindow(QMainWindow):
         self.save_current_config()
 
     def update_totals(self):
-        grand_count = self.config.grand_total_count()
-        grand_pts = self.config.grand_total_points()
-        pts_str = f"{int(grand_pts)}" if grand_pts.is_integer() else f"{grand_pts:.1f}"
-        self.stats_badge.setText(f"{grand_count} шт • {pts_str} б")
+        current_idx = self.tab_widget.currentIndex()
+        if 0 <= current_idx < len(self.config.tabs):
+            active_tab = self.config.tabs[current_idx]
+            count = active_tab.total_count()
+            pts = active_tab.total_points()
+        else:
+            count = 0
+            pts = 0.0
+        pts_str = f"{int(pts)}" if pts.is_integer() else f"{pts:.1f}"
+        self.stats_badge.setText(f"{count} шт • {pts_str} б")
 
     def auto_refresh_folders(self):
         """Silently refresh folder counters."""
@@ -386,7 +394,7 @@ class MainWindow(QMainWindow):
                 reply = QMessageBox.question(
                     self,
                     "Подтверждение импорта",
-                    f"Загрузить настройки из файла?\nБудет загружено {len(imported.tabs)} отделов.",
+                    f"Загрузить настройки из файла?\nБудет загружено {len(imported.tabs)} вкладок.",
                     QMessageBox.Yes | QMessageBox.No,
                     QMessageBox.Yes
                 )
@@ -405,7 +413,7 @@ class MainWindow(QMainWindow):
         reply = QMessageBox.question(
             self,
             "Сброс настроек",
-            "Сбросить структуру отделов к стандартным (PM, DI, PSED, HAD)?\n"
+            "Сбросить структуру вкладок к стандартным (PM, DI, PSED, HAD)?\n"
             "Текущие настроенные пути и поля будут заменены стандартными шаблонами.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
@@ -417,4 +425,4 @@ class MainWindow(QMainWindow):
             self.rank_edit.setText(self.config.rank)
             self.rebuild_tabs()
             self.save_current_config()
-            self.status_bar.showMessage("Восстановлены стандартные настройки отделов", 4000)
+            self.status_bar.showMessage("Восстановлены стандартные настройки вкладок", 4000)

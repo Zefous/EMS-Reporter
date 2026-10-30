@@ -47,11 +47,11 @@ class TabPageWidget(QWidget):
         top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.setSpacing(10)
 
-        # Left: department description & subtotal
+        # Left: tab description & subtotal
         info_layout = QVBoxLayout()
         info_layout.setSpacing(2)
 
-        self.tab_desc_lbl = QLabel(self.tab.description or "Настраиваемый отдел EMS")
+        self.tab_desc_lbl = QLabel(self.tab.description or "Настраиваемая вкладка")
         self.tab_desc_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; font-style: italic;")
 
         self.subtotal_lbl = QLabel()
@@ -72,17 +72,17 @@ class TabPageWidget(QWidget):
 
         self.refresh_btn = QPushButton("🔄 Пересчитать")
         self.refresh_btn.setObjectName("secondaryButton")
-        self.refresh_btn.setToolTip("Пересчитать файлы во всех папках этого отдела")
+        self.refresh_btn.setToolTip("Пересчитать файлы во всех папках этой вкладки")
         self.refresh_btn.clicked.connect(self.refresh_all_fields)
 
-        self.edit_tab_btn = QPushButton("⚙ Отдел")
+        self.edit_tab_btn = QPushButton("⚙ Вкладка")
         self.edit_tab_btn.setObjectName("secondaryButton")
         self.edit_tab_btn.setToolTip("Редактировать название или описание этой вкладки")
         self.edit_tab_btn.clicked.connect(lambda: self.edit_tab_requested.emit(self.tab.id))
 
-        self.del_tab_btn = QPushButton("🗑 Удалить отдел")
+        self.del_tab_btn = QPushButton("🗑 Удалить вкладку")
         self.del_tab_btn.setObjectName("dangerButton")
-        self.del_tab_btn.setToolTip("Удалить этот отдел и все его поля")
+        self.del_tab_btn.setToolTip("Удалить эту вкладку и все её поля")
         self.del_tab_btn.clicked.connect(lambda: self.delete_tab_requested.emit(self.tab.id))
 
         btn_layout.addWidget(self.add_field_btn)
@@ -112,7 +112,7 @@ class TabPageWidget(QWidget):
         tot_pts = self.tab.total_points()
         tot_count = self.tab.total_count()
         pts_str = f"{int(tot_pts)}" if tot_pts.is_integer() else f"{tot_pts:.1f}"
-        self.subtotal_lbl.setText(f"Итого по отделу: {tot_count} выполнено • {pts_str} баллов")
+        self.subtotal_lbl.setText(f"Итого по вкладке: {tot_count} выполнено • {pts_str} баллов")
 
     def rebuild_fields(self):
         """Clear and recreate all field cards."""
