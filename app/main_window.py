@@ -117,32 +117,25 @@ class MainWindow(QMainWindow):
         title_box.addWidget(subtitle_lbl)
         header_layout.addLayout(title_box, 3)
 
-        # Player profile inputs (Name & Static ID)
+        # Player profile inputs (Name & Static ID only, rank removed per Requirement 2)
         player_box = QHBoxLayout()
         player_box.setSpacing(6)
 
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("Имя Фамилия")
         self.name_edit.setText(self.config.player_name)
-        self.name_edit.setFixedWidth(120)
+        self.name_edit.setFixedWidth(130)
         self.name_edit.textChanged.connect(self.on_player_info_changed)
 
         self.static_edit = QLineEdit()
         self.static_edit.setPlaceholderText("Статик #ID")
         self.static_edit.setText(self.config.player_static)
-        self.static_edit.setFixedWidth(75)
+        self.static_edit.setFixedWidth(80)
         self.static_edit.textChanged.connect(self.on_player_info_changed)
-
-        self.rank_edit = QLineEdit()
-        self.rank_edit.setPlaceholderText("Ранг / Должность")
-        self.rank_edit.setText(self.config.rank)
-        self.rank_edit.setFixedWidth(120)
-        self.rank_edit.textChanged.connect(self.on_player_info_changed)
 
         player_box.addWidget(QLabel("Сотрудник:"))
         player_box.addWidget(self.name_edit)
         player_box.addWidget(self.static_edit)
-        player_box.addWidget(self.rank_edit)
         header_layout.addLayout(player_box)
 
         # Summary Stats Badge (Total actions & Total points)
@@ -212,18 +205,48 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(toolbar)
 
-        # 3. Department Tabs Container
+        # 3. Tabs Container with Empty Placeholder
         body = QWidget()
-        body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(14, 12, 14, 12)
-        body_layout.setSpacing(8)
+        self.body_layout = QVBoxLayout(body)
+        self.body_layout.setContentsMargins(10, 8, 10, 8)
+        self.body_layout.setSpacing(6)
+
+        # Empty Placeholder (Requirement 1)
+        self.empty_placeholder = QFrame()
+        self.empty_placeholder.setObjectName("emptyPlaceholder")
+        ep_layout = QVBoxLayout(self.empty_placeholder)
+        ep_layout.setAlignment(Qt.AlignCenter)
+        ep_layout.setSpacing(10)
+
+        ep_icon = QLabel("📑")
+        ep_icon.setStyleSheet("font-size: 38px;")
+        ep_icon.setAlignment(Qt.AlignCenter)
+
+        ep_title = QLabel("Пока что здесь пусто")
+        ep_title.setObjectName("emptyTitle")
+        ep_title.setAlignment(Qt.AlignCenter)
+
+        ep_desc = QLabel("Чтобы что-то появилось, нажмите «➕ Добавить вкладку» выше.")
+        ep_desc.setObjectName("emptyDesc")
+        ep_desc.setAlignment(Qt.AlignCenter)
+
+        ep_btn = QPushButton("➕ Добавить первую вкладку")
+        ep_btn.setObjectName("primaryButton")
+        ep_btn.setFixedSize(210, 32)
+        ep_btn.clicked.connect(self.create_tab)
+
+        ep_layout.addWidget(ep_icon)
+        ep_layout.addWidget(ep_title)
+        ep_layout.addWidget(ep_desc)
+        ep_layout.addWidget(ep_btn, 0, Qt.AlignCenter)
 
         self.tab_widget = QTabWidget()
         self.tab_widget.setMovable(True)
         self.tab_widget.currentChanged.connect(self.on_tab_switched)
         self.tab_widget.tabBar().tabMoved.connect(self.on_tab_moved)
 
-        body_layout.addWidget(self.tab_widget)
+        self.body_layout.addWidget(self.empty_placeholder)
+        self.body_layout.addWidget(self.tab_widget)
         main_layout.addWidget(body, 1)
 
         # 4. Status Bar
@@ -232,10 +255,20 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("EMS Reporter готов к работе")
 
     def rebuild_tabs(self):
-        """Reconstruct tab widget from config."""
+        """Reconstruct tab widget from config and update placeholder visibility."""
         self.tab_widget.blockSignals(True)
         self.tab_widget.clear()
         self.tab_widgets.clear()
+
+        if not self.config.tabs:
+            self.empty_placeholder.show()
+            self.tab_widget.hide()
+            self.tab_widget.blockSignals(False)
+            self.update_totals()
+            return
+
+        self.empty_placeholder.hide()
+        self.tab_widget.show()
 
         selected_index = 0
         for idx, tab in enumerate(self.config.tabs):
@@ -319,7 +352,6 @@ class MainWindow(QMainWindow):
     def on_player_info_changed(self):
         self.config.player_name = self.name_edit.text()
         self.config.player_static = self.static_edit.text()
-        self.config.rank = self.rank_edit.text()
         self.save_current_config()
 
     def on_data_changed(self):
@@ -402,7 +434,6 @@ class MainWindow(QMainWindow):
                     self.config = imported
                     self.name_edit.setText(self.config.player_name)
                     self.static_edit.setText(self.config.player_static)
-                    self.rank_edit.setText(self.config.rank)
                     self.rebuild_tabs()
                     self.save_current_config()
                     QMessageBox.information(self, "Импорт завершён", "Настройки успешно применены!")
@@ -413,8 +444,8 @@ class MainWindow(QMainWindow):
         reply = QMessageBox.question(
             self,
             "Сброс настроек",
-            "Сбросить структуру вкладок к стандартным (PM, DI, PSED, HAD)?\n"
-            "Текущие настроенные пути и поля будут заменены стандартными шаблонами.",
+            "Вы уверены, что хотите сбросить настройки?\n"
+            "Все вкладки и поля будут удалены.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
@@ -422,7 +453,6 @@ class MainWindow(QMainWindow):
             self.config = create_default_config()
             self.name_edit.setText(self.config.player_name)
             self.static_edit.setText(self.config.player_static)
-            self.rank_edit.setText(self.config.rank)
             self.rebuild_tabs()
             self.save_current_config()
-            self.status_bar.showMessage("Восстановлены стандартные настройки вкладок", 4000)
+            self.status_bar.showMessage("Настройки сброшены. Создайте нужные вкладки через «Добавить вкладку».", 4000)

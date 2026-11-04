@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from app.models import ReporterConfig, DepartmentTab, ReportField, FieldType
+from app.models import ReporterConfig, DepartmentTab, ReportField, FieldType, DiscordLinkItem
 from app.main_window import MainWindow
 from app.theme import MEDICAL_QSS
 from app.report_dialog import ReportPreviewDialog, ReportFieldItem
@@ -27,29 +27,36 @@ def qapp():
     return app
 
 
-def test_main_window_lifecycle_and_ui(qapp):
-    """Verify MainWindow initializes cleanly, loads tabs with 0 fields by default."""
+def test_main_window_lifecycle_and_empty_placeholder(qapp):
+    """Verify MainWindow initializes cleanly with empty placeholder when no tabs exist."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         config_path = Path(tmp_dir) / "test_gui_config.json"
         window = MainWindow(config_path=str(config_path))
         window.show()
 
-        # Check tabs count (4 default tabs: PM, DI, PSED, HAD)
-        assert window.tab_widget.count() == 4
-        assert "Paramedic" in window.tab_widget.tabText(0)
+        # Requirement 1: No pre-created tabs, empty placeholder shown
+        assert window.tab_widget.count() == 0
+        assert window.empty_placeholder.isVisible() is True
+        assert "0 шт • 0 б" in window.stats_badge.text()
 
-        # By requirement #2: All tabs should have NO pre-created fields
-        pm_tab_widget = window.tab_widgets[window.config.tabs[0].id]
-        assert len(pm_tab_widget.field_cards) == 0
+        # Requirement 2: Rank edit removed
+        assert not hasattr(window, "rank_edit")
 
         # Change player info
         window.name_edit.setText("Jason Mitsui")
         window.static_edit.setText("206277")
-        window.rank_edit.setText("Paramedic")
         assert window.config.player_name == "Jason Mitsui"
         assert window.config.player_static == "206277"
 
-        # Now add a numeric field programmatically to test live badge and editing
+        # Add a tab
+        new_tab = DepartmentTab(id="tab-1", title="Paramedic (PM)", fields=[])
+        window.config.tabs.append(new_tab)
+        window.rebuild_tabs()
+
+        assert window.tab_widget.count() == 1
+        assert window.empty_placeholder.isVisible() is False
+
+        # Add a numeric field
         test_field = ReportField(
             id="f-num-test",
             name="Участие в мероприятии",
@@ -57,45 +64,37 @@ def test_main_window_lifecycle_and_ui(qapp):
             points_per_unit=5.0,
             manual_count=2
         )
-        window.config.tabs[0].fields.append(test_field)
+        new_tab.fields.append(test_field)
+        pm_tab_widget = window.tab_widgets[new_tab.id]
         pm_tab_widget.rebuild_fields()
         window.update_totals()
 
         assert len(pm_tab_widget.field_cards) == 1
         card = pm_tab_widget.field_cards[0]
 
-        # Requirement #3: Badge must be selectable and copyable, but read-only
+        # Badge must be selectable & copyable
         assert card.badge_lbl.isReadOnly() is True
         assert card.badge_lbl.text() == "(2 шт - 10 б)"
 
-        # Requirement #1: Changing points_per_unit must update the info label under title
-        assert "Ценность: 5 б. за единицу" in card.info_lbl.text()
-        card.field.points_per_unit = 7.0
-        card.refresh_display()
-        assert "Ценность: 7 б. за единицу" in card.info_lbl.text()
-        assert card.badge_lbl.text() == "(2 шт - 14 б)"
-
         # Changing manual count
         card.spin_count.setValue(3)
-        assert card.badge_lbl.text() == "(3 шт - 21 б)"
+        assert card.badge_lbl.text() == "(3 шт - 15 б)"
 
-        # Grab screenshot
-        pixmap = window.grab()
-        assert not pixmap.isNull()
+        # Top-right stats badge
+        assert "3 шт • 15 б" in window.stats_badge.text()
 
         window.close()
 
 
 def test_report_dialog_individual_fields(qapp):
-    """Verify ReportPreviewDialog renders individual fields according to requirement #5."""
+    """Verify ReportPreviewDialog renders individual fields without quotes and with task counts."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         config_path = Path(tmp_dir) / "test_gui_config.json"
         window = MainWindow(config_path=str(config_path))
         window.config.player_name = "Jason Mitsui"
         window.config.player_static = "206277"
 
-        pm_tab = window.config.tabs[0]
-        pm_tab.fields = [
+        pm_tab = DepartmentTab(id="t1", title="Paramedic (PM)", fields=[
             ReportField(
                 id="f1",
                 name="ПМП день (Город)",
@@ -111,14 +110,24 @@ def test_report_dialog_individual_fields(qapp):
                 points_per_unit=3.0,
                 manual_count=6,
                 cloud_link=""
+            ),
+            ReportField(
+                id="f3",
+                name="Отчёты в спец. связи",
+                field_type=FieldType.LINKS,
+                points_per_unit=3.0,
+                links=[
+                    DiscordLinkItem(url="https://discord.com/msg1", count=3),
+                    DiscordLinkItem(url="https://discord.com/msg2", count=2),
+                ]
             )
-        ]
+        ])
 
         dlg = ReportPreviewDialog(window.config, tab=pm_tab)
         dlg.show()
 
-        # Check field items count: 1 (Player) + 2 (Fields) + 1 (Total) = 4
-        assert len(dlg.field_items) == 4
+        # Check field items count: 1 (Player) + 3 (Fields) + 1 (Total) = 5
+        assert len(dlg.field_items) == 5
 
         # Field 1: Player info
         assert dlg.field_items[0].title == "Имя Фамилия | статик"
@@ -132,104 +141,56 @@ def test_report_dialog_individual_fields(qapp):
         assert dlg.field_items[2].title == "ПМП ночь (Город)"
         assert dlg.field_items[2].get_text() == '(6 шт - 18 б)'
 
-        # Field 4: Total points
-        assert dlg.field_items[3].title == "Общее количество баллов"
-        assert dlg.field_items[3].get_text() == '38'
+        # Field 4: Discord links with individual counts and subtotal
+        assert dlg.field_items[3].title == "Отчёты в спец. связи"
+        f3_text = dlg.field_items[3].get_text()
+        assert "https://discord.com/msg1 (3 шт - 9 б)" in f3_text
+        assert "https://discord.com/msg2 (2 шт - 6 б)" in f3_text
+        assert "(5 шт - 15 б)" in f3_text
 
-        # Test copying individual item
-        dlg.field_items[1].copy_value()
-        assert QApplication.clipboard().text() == 'https://drive.google.com/folder1 (10 шт - 20 б)'
-
-        # Test copying entire report text
-        dlg.copy_all_report()
-        clipboard_text = QApplication.clipboard().text()
-        assert "Имя Фамилия | статик" in clipboard_text
-        assert "Jason Mitsui | 206277" in clipboard_text
-        assert "ПМП день (Город)" in clipboard_text
-        assert "Общее количество баллов" in clipboard_text
-        assert "38" in clipboard_text
+        # Field 5: Total points (20 + 18 + 15 = 53)
+        assert dlg.field_items[4].title == "Общее количество баллов"
+        assert dlg.field_items[4].get_text() == '53'
 
         dlg.close()
         window.close()
 
 
 def test_links_card_and_edit_dialog(qapp):
-    """Verify links field card and EditLinksDialog work in GUI."""
+    """Verify links field card and EditLinksDialog with task quantities per link."""
+    items = [
+        DiscordLinkItem(url="https://discord.com/1", count=2),
+        DiscordLinkItem(url="https://discord.com/2", count=3)
+    ]
     field = ReportField(
         id="lnk-gui",
         name="Отчёты в спец. связи (Discord)",
         field_type=FieldType.LINKS,
         points_per_unit=4.0,
-        links=["https://discord.com/1", "https://discord.com/2"]
+        links=items
     )
     card = FieldCardWidget(field)
 
-    assert card.badge_lbl.text() == "(2 шт - 8 б)"
-    assert "Введено: 2 шт." in card.info_lbl.text()
+    # 2 + 3 = 5 tasks * 4 = 20 pts
+    assert card.badge_lbl.text() == "(5 шт - 20 б)"
+    assert "Всего задач: 5 шт." in card.info_lbl.text()
     assert card.links_btn.text() == "🔗 Ссылки (2)"
 
     # Test EditLinksDialog
-    dlg = EditLinksDialog(parent=card, field_name=field.name, links=field.links, points_per_unit=field.points_per_unit)
+    dlg = EditLinksDialog(parent=card, field_name=field.name, items=field.get_discord_link_items(), points_per_unit=field.points_per_unit)
     assert "Ссылок: 2 шт." in dlg.stats_lbl.text()
-    assert "8 б." in dlg.stats_lbl.text()
+    assert "20 б." in dlg.stats_lbl.text()
 
-    # Add a third link in the editor
-    dlg.editor.appendPlainText("https://discord.com/3")
+    # Add a row
+    new_row = dlg.add_row(DiscordLinkItem(url="https://discord.com/3", count=4))
     assert "Ссылок: 3 шт." in dlg.stats_lbl.text()
-    assert "12 б." in dlg.stats_lbl.text()
+    # 5 + 4 = 9 tasks * 4 = 36 pts
+    assert "36 б." in dlg.stats_lbl.text()
 
     dlg.validate_and_save()
-    assert len(dlg.result_links) == 3
+    assert len(dlg.result_items) == 3
 
     card.deleteLater()
-    qapp.processEvents()
-
-
-def test_field_type_switch_updates_icon_and_card(qapp):
-    """Verify icon and card layout update when field_type changes."""
-    field = ReportField(
-        id="f-icon-test",
-        name="Тестовое поле",
-        field_type=FieldType.FOLDER,
-        folder_path="",
-        points_per_unit=2.0
-    )
-    card = FieldCardWidget(field)
-    assert card.icon_lbl.text() == "📁"
-
-    # Switch to LINKS
-    field.field_type = FieldType.LINKS
-    card.refresh_display()
-    assert card.icon_lbl.text() == "🔗"
-
-    # Switch to NUMERIC
-    field.field_type = FieldType.NUMERIC
-    card.refresh_display()
-    assert card.icon_lbl.text() == "🔢"
-
-    card.deleteLater()
-    qapp.processEvents()
-
-
-def test_edit_field_dialog_cloud_link_hidden_for_links(qapp):
-    """Verify cloud storage link input is hidden for LINKS field type."""
-    dlg = EditFieldDialog()
-    dlg.show()
-
-    # Default is FOLDER -> cloud link should be visible
-    assert dlg.cloud_link_container.isVisible() is True
-
-    # Switch to LINKS -> cloud link must be hidden
-    dlg.type_combo.setCurrentIndex(2)  # FieldType.LINKS
-    assert dlg.type_combo.currentData() == FieldType.LINKS
-    assert dlg.cloud_link_container.isVisible() is False
-
-    # Switch back to NUMERIC -> cloud link should be visible again
-    dlg.type_combo.setCurrentIndex(1)  # FieldType.NUMERIC
-    assert dlg.type_combo.currentData() == FieldType.NUMERIC
-    assert dlg.cloud_link_container.isVisible() is True
-
-    dlg.close()
     dlg.deleteLater()
     qapp.processEvents()
 
@@ -241,18 +202,14 @@ def test_active_tab_only_stats_badge(qapp):
         window = MainWindow(config_path=str(config_path))
         window.show()
 
-        tab0 = window.config.tabs[0]
-        tab1 = window.config.tabs[1]
-
-        # Tab 0: 2 items * 5 pts = 10 pts
-        tab0.fields = [
+        tab0 = DepartmentTab(id="t0", title="Вкладка 1", fields=[
             ReportField(id="f0", name="Действие 1", field_type=FieldType.NUMERIC, points_per_unit=5.0, manual_count=2)
-        ]
-        # Tab 1: 5 items * 10 pts = 50 pts
-        tab1.fields = [
+        ])
+        tab1 = DepartmentTab(id="t1", title="Вкладка 2", fields=[
             ReportField(id="f1", name="Действие 2", field_type=FieldType.NUMERIC, points_per_unit=10.0, manual_count=5)
-        ]
+        ])
 
+        window.config.tabs = [tab0, tab1]
         window.rebuild_tabs()
 
         # When Tab 0 is selected

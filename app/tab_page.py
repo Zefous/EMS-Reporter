@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from app.models import DepartmentTab, ReportField, FieldType
 from app.field_widget import FieldCardWidget
 from app.dialogs import EditFieldDialog, EditTabDialog
+from app.smooth_scroll import SmoothScrollArea
 
 
 class TabPageWidget(QWidget):
@@ -93,16 +94,16 @@ class TabPageWidget(QWidget):
 
         main_layout.addWidget(top_bar)
 
-        # Scroll Area for field cards
-        self.scroll = QScrollArea()
+        # Smooth Scroll Area for field cards - Compact Spacing
+        self.scroll = SmoothScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
         self.scroll_content = QWidget()
         self.fields_layout = QVBoxLayout(self.scroll_content)
-        self.fields_layout.setContentsMargins(0, 4, 4, 4)
-        self.fields_layout.setSpacing(10)
+        self.fields_layout.setContentsMargins(0, 2, 2, 2)
+        self.fields_layout.setSpacing(6)
         self.fields_layout.addStretch()
 
         self.scroll.setWidget(self.scroll_content)

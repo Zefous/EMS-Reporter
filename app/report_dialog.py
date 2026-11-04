@@ -17,11 +17,11 @@ from PySide6.QtWidgets import (
     QApplication,
     QMessageBox,
     QFileDialog,
-    QScrollArea,
     QFrame,
 )
 
 from app.models import ReporterConfig, DepartmentTab
+from app.smooth_scroll import SmoothScrollArea
 
 
 class ReportFieldItem(QWidget):
@@ -159,8 +159,8 @@ class ReportPreviewDialog(QDialog):
         opt_layout.addStretch()
         layout.addLayout(opt_layout)
 
-        # Scroll Area for fields
-        self.scroll = QScrollArea()
+        # Smooth Scroll Area for fields
+        self.scroll = SmoothScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 

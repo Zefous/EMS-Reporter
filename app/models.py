@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -13,27 +13,55 @@ class FieldType(str, Enum):
     """Type of field inside a department tab."""
     FOLDER = "folder"      # Counts screenshots in a directory
     NUMERIC = "numeric"    # Manual numeric input (spinbox)
-    LINKS = "links"        # Counts message / proof links (Discord, etc.)
+    LINKS = "links"        # Counts message / proof links with task counts (Discord, etc.)
+
+
+class DiscordLinkItem(BaseModel):
+    """Single Discord link entry with a count of completed tasks."""
+    url: str = Field(default="", description="Discord message URL")
+    count: int = Field(default=1, ge=1, description="Number of completed tasks for this link")
 
 
 class ReportField(BaseModel):
-    """Single item / counter inside an EMS department tab."""
+    """Single item / counter inside an EMS tab."""
     id: str = Field(description="Unique identifier for the field")
     name: str = Field(description="Field display name, e.g. 'ПМП день (Город)'")
     field_type: FieldType = Field(default=FieldType.FOLDER, description="Type: folder, numeric, or links")
     folder_path: str = Field(default="", description="Path to folder containing screenshots (for folder type)")
-    points_per_unit: float = Field(default=1.0, description="Points awarded per screenshot, unit, or link")
+    points_per_unit: float = Field(default=1.0, description="Points awarded per screenshot, unit, or link task")
     manual_count: int = Field(default=0, ge=0, description="Current value for numeric fields")
-    links: List[str] = Field(default_factory=list, description="List of message links (for links type)")
+    
+    # Backward compatible link storage (strings or DiscordLinkItem)
+    links: List[Union[str, DiscordLinkItem]] = Field(
+        default_factory=list,
+        description="List of message links or DiscordLinkItem"
+    )
+
+    # Batch / Threshold calculation for folder fields (Item 5)
+    batch_mode_enabled: bool = Field(default=False, description="Enable batch/threshold calculation")
+    batch_size: int = Field(default=4, ge=1, description="Number of screenshots required for one batch")
+    batch_points: float = Field(default=30.0, ge=0.0, description="Points awarded per complete batch")
+
     cloud_link: str = Field(default="", description="Optional cloud storage link (e.g. Google Drive folder, Imgur album)")
     filter_extensions: List[str] = Field(
         default_factory=lambda: [".png", ".jpg", ".jpeg", ".bmp", ".webp"],
         description="Allowed image file extensions for folder scanning (empty = all files)"
     )
 
-    def get_clean_links(self) -> List[str]:
-        """Return non-empty trimmed links."""
-        return [lnk.strip() for lnk in self.links if lnk and lnk.strip()]
+    def get_discord_link_items(self) -> List[DiscordLinkItem]:
+        """Normalize links into DiscordLinkItem list with valid non-empty URLs."""
+        res: List[DiscordLinkItem] = []
+        for item in self.links:
+            if isinstance(item, DiscordLinkItem):
+                clean_url = item.url.strip()
+                if clean_url:
+                    res.append(DiscordLinkItem(url=clean_url, count=max(1, int(item.count))))
+            elif isinstance(item, str):
+                s = item.strip()
+                if s:
+                    # check if string might be in 'url (count)' or just 'url'
+                    res.append(DiscordLinkItem(url=s, count=1))
+        return res
 
     def count_files(self) -> int:
         """Count matching files in folder if folder_path exists."""
@@ -64,38 +92,53 @@ class ReportField(BaseModel):
         return count
 
     def get_count(self) -> int:
-        """Get the item count (files in folder, manual numeric value, or number of links)."""
+        """Get the total completed item/task count."""
         if self.field_type == FieldType.FOLDER:
             return self.count_files()
         elif self.field_type == FieldType.LINKS:
-            return len(self.get_clean_links())
+            items = self.get_discord_link_items()
+            return sum(item.count for item in items)
         return max(0, int(self.manual_count))
 
     def calculate_points(self) -> float:
         """Calculate total points for this field."""
-        count = self.get_count()
-        return round(count * self.points_per_unit, 2)
+        if self.field_type == FieldType.FOLDER:
+            count = self.count_files()
+            if self.batch_mode_enabled and self.batch_size > 0:
+                batches = count // self.batch_size
+                return round(batches * self.batch_points, 2)
+            return round(count * self.points_per_unit, 2)
+        elif self.field_type == FieldType.LINKS:
+            items = self.get_discord_link_items()
+            total_tasks = sum(item.count for item in items)
+            return round(total_tasks * self.points_per_unit, 2)
+        else:
+            return round(self.get_count() * self.points_per_unit, 2)
 
     def format_status_text(self) -> str:
         """Return formatted badge text, e.g. '(13 шт - 26 б)'."""
         count = self.get_count()
         pts = self.calculate_points()
-        # Format points nicely: 26 instead of 26.0 if whole number
         pts_str = f"{int(pts)}" if pts.is_integer() else f"{pts:.1f}"
         return f"({count} шт - {pts_str} б)"
 
     def format_report_entry(self, join_with_newline: bool = True) -> str:
-        """Format field value for report, e.g. 'https://... (10 шт - 20 б)' or '(6 шт - 18 б)'."""
+        """Format field value for report."""
         status = self.format_status_text()
         if self.field_type == FieldType.LINKS:
-            clean = self.get_clean_links()
-            if not clean:
+            items = self.get_discord_link_items()
+            if not items:
                 return status
-            if len(clean) == 1:
-                return f"{clean[0]} {status}"
-            else:
-                sep = "\n" if join_with_newline else " "
-                return f"{sep.join(clean)}{sep}{status}"
+
+            lines = []
+            for item in items:
+                link_pts = round(item.count * self.points_per_unit, 2)
+                link_pts_str = f"{int(link_pts)}" if link_pts.is_integer() else f"{link_pts:.1f}"
+                lines.append(f"{item.url} ({item.count} шт - {link_pts_str} б)")
+
+            lines.append(status)
+            sep = "\n" if join_with_newline else " "
+            return sep.join(lines)
         else:
             link = self.cloud_link.strip() if self.cloud_link else ""
             if link:
@@ -104,11 +147,11 @@ class ReportField(BaseModel):
 
 
 class DepartmentTab(BaseModel):
-    """Tab representing a department (PM, DI, PSED, HAD, etc.) or custom group."""
+    """Tab representing a department or custom group."""
     id: str = Field(description="Unique identifier for the tab")
     title: str = Field(description="Display title, e.g. 'Paramedic (PM)'")
-    code: str = Field(default="", description="Short code, e.g. 'PM', 'DI', 'PSED', 'HAD'")
-    description: str = Field(default="", description="Short description or notes")
+    code: str = Field(default="", description="Optional code")
+    description: str = Field(default="", description="Short description")
     fields: List[ReportField] = Field(default_factory=list, description="Fields inside this tab")
 
     def total_count(self) -> int:
@@ -121,14 +164,13 @@ class DepartmentTab(BaseModel):
 
 
 class ReporterConfig(BaseModel):
-    """Complete application configuration containing tabs, presets, and metadata."""
+    """Complete application configuration containing tabs and metadata."""
     app_title: str = Field(default="EMS Reporter - Majestic RP")
-    player_name: str = Field(default="", description="Name of player (e.g. John Doe | 12345)")
-    player_static: str = Field(default="", description="Static ID / passport (e.g. #12345)")
-    rank: str = Field(default="", description="Current rank/position in EMS")
+    player_name: str = Field(default="", description="Name of player (e.g. John Doe)")
+    player_static: str = Field(default="", description="Static ID / passport (e.g. 12345)")
     auto_refresh_seconds: int = Field(default=5, ge=0, description="Auto folder scan interval (0 = off)")
     active_tab_id: Optional[str] = Field(default=None, description="Last selected tab ID")
-    tabs: List[DepartmentTab] = Field(default_factory=list, description="List of configured department tabs")
+    tabs: List[DepartmentTab] = Field(default_factory=list, description="List of configured tabs")
 
     def grand_total_count(self) -> int:
         """Sum of counts across all tabs."""

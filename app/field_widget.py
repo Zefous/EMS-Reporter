@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QFileDialog,
     QMessageBox,
-    QMenu,
 )
 
 from app.models import ReportField, FieldType
@@ -28,7 +27,7 @@ from app.dialogs import EditFieldDialog, EditLinksDialog
 
 
 class FieldCardWidget(QFrame):
-    """Visual card for an individual report field with live updates."""
+    """Visual card for an individual report field with live updates (Compact)."""
 
     changed = Signal()         # Emitted when value, path, or config changes
     type_changed = Signal()    # Emitted when field type is switched (rebuilds card layout)
@@ -53,16 +52,16 @@ class FieldCardWidget(QFrame):
 
     def setup_ui(self):
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(14, 10, 14, 10)
-        main_layout.setSpacing(14)
+        main_layout.setContentsMargins(10, 6, 10, 6)
+        main_layout.setSpacing(10)
 
         # Left: Icon & Name & Path/Details
         left_layout = QVBoxLayout()
-        left_layout.setSpacing(4)
+        left_layout.setSpacing(2)
 
         # Title row
         title_row = QHBoxLayout()
-        title_row.setSpacing(8)
+        title_row.setSpacing(6)
 
         if self.field.field_type == FieldType.FOLDER:
             icon_text = "📁"
@@ -72,10 +71,10 @@ class FieldCardWidget(QFrame):
             icon_text = "🔗"
 
         self.icon_lbl = QLabel(icon_text)
-        self.icon_lbl.setStyleSheet("font-size: 16px;")
+        self.icon_lbl.setStyleSheet("font-size: 14px;")
 
         self.title_lbl = QLabel(self.field.name)
-        self.title_lbl.setStyleSheet("font-weight: 700; font-size: 14px; color: #f8fafc;")
+        self.title_lbl.setStyleSheet("font-weight: 700; font-size: 13px; color: #f8fafc;")
 
         title_row.addWidget(self.icon_lbl)
         title_row.addWidget(self.title_lbl)
@@ -93,14 +92,14 @@ class FieldCardWidget(QFrame):
 
             self.pick_folder_btn = QPushButton("Выбрать папку")
             self.pick_folder_btn.setObjectName("secondaryButton")
-            self.pick_folder_btn.setFixedHeight(26)
-            self.pick_folder_btn.setStyleSheet("font-size: 11px; padding: 2px 8px;")
+            self.pick_folder_btn.setFixedHeight(24)
+            self.pick_folder_btn.setStyleSheet("font-size: 11px; padding: 2px 7px;")
             self.pick_folder_btn.clicked.connect(self.select_folder)
 
             self.open_folder_btn = QPushButton("Открыть")
             self.open_folder_btn.setObjectName("secondaryButton")
-            self.open_folder_btn.setFixedHeight(26)
-            self.open_folder_btn.setStyleSheet("font-size: 11px; padding: 2px 8px;")
+            self.open_folder_btn.setFixedHeight(24)
+            self.open_folder_btn.setStyleSheet("font-size: 11px; padding: 2px 7px;")
             self.open_folder_btn.clicked.connect(self.open_folder_in_os)
 
             folder_row.addWidget(self.path_lbl, 1)
@@ -109,22 +108,22 @@ class FieldCardWidget(QFrame):
             left_layout.addLayout(folder_row)
         elif self.field.field_type == FieldType.LINKS:
             links_row = QHBoxLayout()
-            links_row.setSpacing(8)
+            links_row.setSpacing(6)
 
             self.info_lbl = QLabel()
             self.info_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
 
             self.links_btn = QPushButton("🔗 Ссылки (0)")
             self.links_btn.setObjectName("secondaryButton")
-            self.links_btn.setFixedHeight(26)
-            self.links_btn.setStyleSheet("font-size: 11px; padding: 2px 10px; color: #a5b4fc;")
+            self.links_btn.setFixedHeight(24)
+            self.links_btn.setStyleSheet("font-size: 11px; padding: 2px 8px; color: #a5b4fc;")
             self.links_btn.clicked.connect(self.open_links_dialog)
 
             links_row.addWidget(self.info_lbl, 1)
             links_row.addWidget(self.links_btn)
             left_layout.addLayout(links_row)
         else:
-            # Numeric field: note about points per unit
+            # Numeric field
             self.info_lbl = QLabel()
             self.info_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
             left_layout.addWidget(self.info_lbl)
@@ -134,13 +133,13 @@ class FieldCardWidget(QFrame):
         # Middle: Numeric Controls (if numeric field)
         if self.field.field_type == FieldType.NUMERIC:
             mid_layout = QHBoxLayout()
-            mid_layout.setSpacing(6)
+            mid_layout.setSpacing(4)
 
             self.spin_count = QSpinBox()
             self.spin_count.setRange(0, 999999)
             self.spin_count.setValue(self.field.manual_count)
-            self.spin_count.setFixedWidth(80)
-            self.spin_count.setFixedHeight(30)
+            self.spin_count.setFixedWidth(75)
+            self.spin_count.setFixedHeight(26)
             self.spin_count.valueChanged.connect(self.on_spin_changed)
 
             mid_layout.addWidget(self.spin_count)
@@ -148,7 +147,7 @@ class FieldCardWidget(QFrame):
 
         # Right: Score Badge & Actions
         right_layout = QHBoxLayout()
-        right_layout.setSpacing(10)
+        right_layout.setSpacing(8)
 
         # Badge: "(13 шт - 26 б)" - Selectable & copyable, but read-only
         self.badge_lbl = QLineEdit()
@@ -160,37 +159,37 @@ class FieldCardWidget(QFrame):
             self.badge_lbl.setObjectName("badgeLinksScore")
         else:
             self.badge_lbl.setObjectName("badgeScore")
-        self.badge_lbl.setFixedHeight(30)
-        self.badge_lbl.setMinimumWidth(130)
+        self.badge_lbl.setFixedHeight(26)
+        self.badge_lbl.setMinimumWidth(120)
         self.badge_lbl.setToolTip("Выделите текст мышью и скопируйте (Ctrl+C)")
         right_layout.addWidget(self.badge_lbl)
 
         # Actions buttons (Edit, Reorder, Delete)
         actions_layout = QHBoxLayout()
-        actions_layout.setSpacing(4)
+        actions_layout.setSpacing(3)
 
         self.up_btn = QPushButton("▲")
         self.up_btn.setObjectName("iconButton")
-        self.up_btn.setFixedSize(26, 26)
+        self.up_btn.setFixedSize(24, 24)
         self.up_btn.setToolTip("Переместить выше")
         self.up_btn.clicked.connect(lambda: self.moved_up.emit(self.field.id))
 
         self.down_btn = QPushButton("▼")
         self.down_btn.setObjectName("iconButton")
-        self.down_btn.setFixedSize(26, 26)
+        self.down_btn.setFixedSize(24, 24)
         self.down_btn.setToolTip("Переместить ниже")
         self.down_btn.clicked.connect(lambda: self.moved_down.emit(self.field.id))
 
         self.edit_btn = QPushButton("⚙")
         self.edit_btn.setObjectName("iconButton")
-        self.edit_btn.setFixedSize(26, 26)
+        self.edit_btn.setFixedSize(24, 24)
         self.edit_btn.setToolTip("Настроить поле")
         self.edit_btn.clicked.connect(self.edit_field)
 
         self.del_btn = QPushButton("✕")
         self.del_btn.setObjectName("iconButton")
         self.del_btn.setStyleSheet("color: #ef4444; font-weight: bold;")
-        self.del_btn.setFixedSize(26, 26)
+        self.del_btn.setFixedSize(24, 24)
         self.del_btn.setToolTip("Удалить поле")
         self.del_btn.clicked.connect(self.confirm_delete)
 
@@ -205,41 +204,48 @@ class FieldCardWidget(QFrame):
     def update_path_label(self):
         if not hasattr(self, "path_lbl"):
             return
-        pts_val = f"{int(self.field.points_per_unit)}" if self.field.points_per_unit.is_integer() else f"{self.field.points_per_unit:.1f}"
+
+        if self.field.batch_mode_enabled:
+            rate_info = f"{int(self.field.batch_points) if self.field.batch_points.is_integer() else self.field.batch_points} б за каждые {self.field.batch_size} шт"
+        else:
+            pts_val = f"{int(self.field.points_per_unit)}" if self.field.points_per_unit.is_integer() else f"{self.field.points_per_unit:.1f}"
+            rate_info = f"{pts_val} б/скриншот"
+
         if not self.field.folder_path:
-            self.path_lbl.setText(f"⚠️ Папка не выбрана • ({pts_val} б/скриншот)")
+            self.path_lbl.setText(f"⚠️ Папка не выбрана • ({rate_info})")
             self.path_lbl.setStyleSheet("color: #eab308; font-size: 11px;")
         elif not os.path.exists(self.field.folder_path):
-            self.path_lbl.setText(f"❌ Папка не найдена: {self.field.folder_path} • ({pts_val} б/скриншот)")
+            self.path_lbl.setText(f"❌ Папка не найдена • ({rate_info})")
             self.path_lbl.setStyleSheet("color: #f87171; font-size: 11px;")
         else:
-            # Shorten display if too long
             p = self.field.folder_path
-            if len(p) > 45:
-                p = "..." + p[-42:]
-            self.path_lbl.setText(f"📁 {p} • ({pts_val} б/скриншот)")
+            if len(p) > 42:
+                p = "..." + p[-39:]
+            self.path_lbl.setText(f"📁 {p} • ({rate_info})")
             self.path_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
 
     def update_info_label(self):
         if hasattr(self, "info_lbl"):
             pts_val = f"{int(self.field.points_per_unit)}" if self.field.points_per_unit.is_integer() else f"{self.field.points_per_unit:.1f}"
             if self.field.field_type == FieldType.LINKS:
-                count = len(self.field.get_clean_links())
-                self.info_lbl.setText(f"Ссылки на сообщения • Введено: {count} шт. • Ценность: {pts_val} б/ссылка")
+                items = self.field.get_discord_link_items()
+                link_cnt = len(items)
+                task_cnt = sum(it.count for it in items)
+                self.info_lbl.setText(f"Ссылки: {link_cnt} шт. • Всего задач: {task_cnt} шт. • Ценность: {pts_val} б/ед")
                 if hasattr(self, "links_btn"):
-                    self.links_btn.setText(f"🔗 Ссылки ({count})")
+                    self.links_btn.setText(f"🔗 Ссылки ({link_cnt})")
             else:
-                self.info_lbl.setText(f"Ручной ввод данных • Ценность: {pts_val} б. за единицу")
+                self.info_lbl.setText(f"Ручной ввод • Ценность: {pts_val} б. за единицу")
 
     def open_links_dialog(self):
         dlg = EditLinksDialog(
             self,
             field_name=self.field.name,
-            links=self.field.links,
+            items=self.field.get_discord_link_items(),
             points_per_unit=self.field.points_per_unit
         )
         if dlg.exec():
-            self.field.links = dlg.result_links
+            self.field.links = dlg.result_items
             self.refresh_display()
             self.changed.emit()
 
@@ -285,6 +291,9 @@ class FieldCardWidget(QFrame):
                 self.field.points_per_unit = rf.points_per_unit
                 self.field.manual_count = rf.manual_count
                 self.field.links = rf.links
+                self.field.batch_mode_enabled = rf.batch_mode_enabled
+                self.field.batch_size = rf.batch_size
+                self.field.batch_points = rf.batch_points
                 self.field.cloud_link = rf.cloud_link
 
                 if self.field.field_type != old_type:

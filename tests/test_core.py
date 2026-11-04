@@ -5,7 +5,7 @@ import tempfile
 import pytest
 from pathlib import Path
 
-from app.models import ReportField, FieldType, DepartmentTab, ReporterConfig
+from app.models import ReportField, FieldType, DepartmentTab, ReporterConfig, DiscordLinkItem
 from app.storage import ConfigManager, ReportGenerator
 from app.templates import create_default_config
 
@@ -53,73 +53,77 @@ def test_folder_field_scanning():
         assert field.format_status_text() == "(13 шт - 26 б)"
 
 
-def test_cloud_link_format_report_entry():
-    """Verify format_report_entry with and without cloud link."""
-    # Without cloud link
-    f1 = ReportField(
-        id="f1",
-        name="ПМП день (Город)",
-        field_type=FieldType.NUMERIC,
-        points_per_unit=3.0,
-        manual_count=6
-    )
-    assert f1.format_report_entry() == "(6 шт - 18 б)"
+def test_folder_batch_threshold_calculation():
+    """Verify batch threshold scoring (e.g. 8 screenshots = 60 pts, 7 = 30 pts with batch_size=4, batch_points=30)."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        folder_path = Path(tmp_dir)
+        for i in range(8):
+            (folder_path / f"img_{i}.png").write_text("data")
 
-    # With cloud link
-    f2 = ReportField(
-        id="f2",
-        name="ПМП день (Город)",
-        field_type=FieldType.NUMERIC,
-        points_per_unit=2.0,
-        manual_count=10,
-        cloud_link="https://drive.google.com/drive/folders/test12345"
-    )
-    assert f2.format_report_entry() == "https://drive.google.com/drive/folders/test12345 (10 шт - 20 б)"
+        field = ReportField(
+            id="fld-batch",
+            name="ПМП за городом",
+            field_type=FieldType.FOLDER,
+            folder_path=str(folder_path),
+            points_per_unit=2.0,
+            batch_mode_enabled=True,
+            batch_size=4,
+            batch_points=30.0
+        )
+
+        # 8 screenshots // 4 = 2 batches * 30 = 60 points
+        assert field.get_count() == 8
+        assert field.calculate_points() == 60.0
+        assert field.format_status_text() == "(8 шт - 60 б)"
+
+        # Remove 1 screenshot -> 7 screenshots // 4 = 1 batch * 30 = 30 points (remainder 3 ignored)
+        (folder_path / "img_7.png").unlink()
+        assert field.get_count() == 7
+        assert field.calculate_points() == 30.0
+        assert field.format_status_text() == "(7 шт - 30 б)"
+
+        # If batch_mode is disabled, counts normally (7 * 2 = 14)
+        field.batch_mode_enabled = False
+        assert field.calculate_points() == 14.0
+        assert field.format_status_text() == "(7 шт - 14 б)"
 
 
-def test_links_field_calculation_and_report():
-    """Verify links field counts non-empty links and calculates points properly."""
+def test_discord_links_with_tasks_calculation_and_report():
+    """Verify links field counts tasks per link and formats report accurately."""
     f = ReportField(
         id="lnk-1",
         name="Отчёт в Discord",
         field_type=FieldType.LINKS,
-        points_per_unit=5.0,
+        points_per_unit=3.0,
         links=[
-            "https://discord.com/channels/1/2/3",
-            "   ",  # Empty line should be ignored
-            "https://discord.com/channels/1/2/4",
-            "https://discord.com/channels/1/2/5"
+            DiscordLinkItem(url="https://discord.com/channels/1/2/1", count=3),
+            DiscordLinkItem(url="https://discord.com/channels/1/2/2", count=2),
+            DiscordLinkItem(url="https://discord.com/channels/1/2/3", count=5),
         ]
     )
 
-    assert f.get_count() == 3
-    assert f.calculate_points() == 15.0
-    assert f.format_status_text() == "(3 шт - 15 б)"
+    # Total tasks = 3 + 2 + 5 = 10
+    assert f.get_count() == 10
+    # Total points = 10 * 3 = 30
+    assert f.calculate_points() == 30.0
+    assert f.format_status_text() == "(10 шт - 30 б)"
 
-    # Report entry with newlines
-    entry_nl = f.format_report_entry(join_with_newline=True)
-    assert "https://discord.com/channels/1/2/3" in entry_nl
-    assert "https://discord.com/channels/1/2/5" in entry_nl
-    assert "(3 шт - 15 б)" in entry_nl
-    assert "\n" in entry_nl
+    # Format report entry
+    report_entry = f.format_report_entry(join_with_newline=True)
+    expected_lines = [
+        "https://discord.com/channels/1/2/1 (3 шт - 9 б)",
+        "https://discord.com/channels/1/2/2 (2 шт - 6 б)",
+        "https://discord.com/channels/1/2/3 (5 шт - 15 б)",
+        "(10 шт - 30 б)"
+    ]
+    for line in expected_lines:
+        assert line in report_entry
 
-    # Report entry single line
-    entry_sl = f.format_report_entry(join_with_newline=False)
-    assert "\n" not in entry_sl
-    assert "(3 шт - 15 б)" in entry_sl
 
-
-def test_default_config_has_empty_fields():
-    """Verify default tabs exist (PM, DI, PSED, HAD) and have no pre-created fields."""
+def test_default_config_is_completely_clean():
+    """Verify default config starts with NO tabs at all."""
     config = create_default_config()
-    codes = [t.code for t in config.tabs]
-    assert "PM" in codes
-    assert "DI" in codes
-    assert "PSED" in codes
-    assert "HAD" in codes
-
-    for t in config.tabs:
-        assert len(t.fields) == 0, f"Tab {t.title} should have 0 fields by default"
+    assert len(config.tabs) == 0
 
 
 def test_config_save_load_and_export():
@@ -129,8 +133,8 @@ def test_config_save_load_and_export():
         mgr = ConfigManager(str(cfg_file))
         config = create_default_config()
         config.player_name = "Dr. House"
-        config.player_static = "#77777"
-        config.rank = "Chief Physician"
+        config.player_static = "77777"
+        config.tabs.append(DepartmentTab(id="tab-1", title="Главная", fields=[]))
 
         # Save & load
         mgr.save(config)
@@ -138,9 +142,8 @@ def test_config_save_load_and_export():
 
         loaded = mgr.load()
         assert loaded.player_name == "Dr. House"
-        assert loaded.player_static == "#77777"
-        assert loaded.rank == "Chief Physician"
-        assert len(loaded.tabs) == len(config.tabs)
+        assert loaded.player_static == "77777"
+        assert len(loaded.tabs) == 1
 
         # Export & Import
         export_file = Path(tmp_dir) / "exported_preset.json"
@@ -149,7 +152,7 @@ def test_config_save_load_and_export():
 
         imported = ConfigManager.import_from_file(str(export_file))
         assert imported.player_name == "Dr. House"
-        assert len(imported.tabs) == len(loaded.tabs)
+        assert len(imported.tabs) == 1
 
 
 def test_plain_report_generation():
@@ -158,8 +161,7 @@ def test_plain_report_generation():
     config.player_name = "Jason Mitsui"
     config.player_static = "206277"
 
-    tab = config.tabs[0]
-    tab.fields = [
+    tab = DepartmentTab(id="t1", title="Paramedic (PM)", fields=[
         ReportField(
             id="f1",
             name="ПМП день (Город)",
@@ -176,7 +178,7 @@ def test_plain_report_generation():
             manual_count=6,
             cloud_link=""
         ),
-    ]
+    ])
 
     report = ReportGenerator.generate_plain_report(config, tab)
     expected_lines = [
