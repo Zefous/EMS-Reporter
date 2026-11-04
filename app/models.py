@@ -11,9 +11,10 @@ from pydantic import BaseModel, Field
 
 class FieldType(str, Enum):
     """Type of field inside a department tab."""
-    FOLDER = "folder"      # Counts screenshots in a directory
-    NUMERIC = "numeric"    # Manual numeric input (spinbox)
-    LINKS = "links"        # Counts message / proof links with task counts (Discord, etc.)
+    FOLDER = "folder"                      # Counts screenshots in a directory
+    NUMERIC = "numeric"                    # Manual numeric input (spinbox)
+    LINKS = "links"                        # Simple links (points awarded per link)
+    LINKS_WITH_TASKS = "links_with_tasks"  # Links with task counts (points awarded per task)
 
 
 class DiscordLinkItem(BaseModel):
@@ -26,18 +27,21 @@ class ReportField(BaseModel):
     """Single item / counter inside an EMS tab."""
     id: str = Field(description="Unique identifier for the field")
     name: str = Field(description="Field display name, e.g. 'ПМП день (Город)'")
-    field_type: FieldType = Field(default=FieldType.FOLDER, description="Type: folder, numeric, or links")
+    field_type: FieldType = Field(default=FieldType.FOLDER, description="Type: folder, numeric, links, or links_with_tasks")
     folder_path: str = Field(default="", description="Path to folder containing screenshots (for folder type)")
-    points_per_unit: float = Field(default=1.0, description="Points awarded per screenshot, unit, or link task")
+    points_per_unit: float = Field(default=1.0, description="Points awarded per screenshot, unit, link, or task")
     manual_count: int = Field(default=0, ge=0, description="Current value for numeric fields")
     
-    # Backward compatible link storage (strings or DiscordLinkItem)
+    # Storage for simple links (plain strings)
+    simple_links: List[str] = Field(default_factory=list, description="List of simple URLs for FieldType.LINKS")
+
+    # Storage for links with tasks (DiscordLinkItem)
     links: List[Union[str, DiscordLinkItem]] = Field(
         default_factory=list,
-        description="List of message links or DiscordLinkItem"
+        description="List of message links or DiscordLinkItem for FieldType.LINKS_WITH_TASKS"
     )
 
-    # Batch / Threshold calculation for folder fields (Item 5)
+    # Batch / Threshold calculation for folder fields
     batch_mode_enabled: bool = Field(default=False, description="Enable batch/threshold calculation")
     batch_size: int = Field(default=4, ge=1, description="Number of screenshots required for one batch")
     batch_points: float = Field(default=30.0, ge=0.0, description="Points awarded per complete batch")
@@ -47,6 +51,14 @@ class ReportField(BaseModel):
         default_factory=lambda: [".png", ".jpg", ".jpeg", ".bmp", ".webp"],
         description="Allowed image file extensions for folder scanning (empty = all files)"
     )
+
+    def get_clean_simple_links(self) -> List[str]:
+        """Return non-empty trimmed links for simple links field."""
+        # Support migration if links were previously stored in self.links
+        source = self.simple_links if self.simple_links else [
+            (it.url if isinstance(it, DiscordLinkItem) else it) for it in self.links
+        ]
+        return [lnk.strip() for lnk in source if lnk and str(lnk).strip()]
 
     def get_discord_link_items(self) -> List[DiscordLinkItem]:
         """Normalize links into DiscordLinkItem list with valid non-empty URLs."""
@@ -59,8 +71,12 @@ class ReportField(BaseModel):
             elif isinstance(item, str):
                 s = item.strip()
                 if s:
-                    # check if string might be in 'url (count)' or just 'url'
                     res.append(DiscordLinkItem(url=s, count=1))
+        # If links was empty but simple_links had items
+        if not res and self.simple_links:
+            for s in self.simple_links:
+                if s.strip():
+                    res.append(DiscordLinkItem(url=s.strip(), count=1))
         return res
 
     def count_files(self) -> int:
@@ -92,10 +108,12 @@ class ReportField(BaseModel):
         return count
 
     def get_count(self) -> int:
-        """Get the total completed item/task count."""
+        """Get the total completed item/link/task count."""
         if self.field_type == FieldType.FOLDER:
             return self.count_files()
         elif self.field_type == FieldType.LINKS:
+            return len(self.get_clean_simple_links())
+        elif self.field_type == FieldType.LINKS_WITH_TASKS:
             items = self.get_discord_link_items()
             return sum(item.count for item in items)
         return max(0, int(self.manual_count))
@@ -109,6 +127,8 @@ class ReportField(BaseModel):
                 return round(batches * self.batch_points, 2)
             return round(count * self.points_per_unit, 2)
         elif self.field_type == FieldType.LINKS:
+            return round(len(self.get_clean_simple_links()) * self.points_per_unit, 2)
+        elif self.field_type == FieldType.LINKS_WITH_TASKS:
             items = self.get_discord_link_items()
             total_tasks = sum(item.count for item in items)
             return round(total_tasks * self.points_per_unit, 2)
@@ -126,6 +146,15 @@ class ReportField(BaseModel):
         """Format field value for report."""
         status = self.format_status_text()
         if self.field_type == FieldType.LINKS:
+            clean = self.get_clean_simple_links()
+            if not clean:
+                return status
+            if len(clean) == 1:
+                return f"{clean[0]} {status}"
+            else:
+                sep = "\n" if join_with_newline else " "
+                return f"{sep.join(clean)}{sep}{status}"
+        elif self.field_type == FieldType.LINKS_WITH_TASKS:
             items = self.get_discord_link_items()
             if not items:
                 return status

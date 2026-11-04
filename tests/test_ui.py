@@ -13,7 +13,7 @@ from app.main_window import MainWindow
 from app.theme import MEDICAL_QSS
 from app.report_dialog import ReportPreviewDialog, ReportFieldItem
 from app.field_widget import FieldCardWidget
-from app.dialogs import EditLinksDialog, EditFieldDialog, EditTabDialog
+from app.dialogs import EditLinksDialog, EditSimpleLinksDialog, EditFieldDialog, EditTabDialog
 
 
 @pytest.fixture(scope="session")
@@ -113,8 +113,15 @@ def test_report_dialog_individual_fields(qapp):
             ),
             ReportField(
                 id="f3",
-                name="Отчёты в спец. связи",
+                name="Простые ссылки",
                 field_type=FieldType.LINKS,
+                points_per_unit=2.0,
+                simple_links=["https://discord.com/p1", "https://discord.com/p2"]
+            ),
+            ReportField(
+                id="f4",
+                name="Отчёты в спец. связи с задачами",
+                field_type=FieldType.LINKS_WITH_TASKS,
                 points_per_unit=3.0,
                 links=[
                     DiscordLinkItem(url="https://discord.com/msg1", count=3),
@@ -126,8 +133,8 @@ def test_report_dialog_individual_fields(qapp):
         dlg = ReportPreviewDialog(window.config, tab=pm_tab)
         dlg.show()
 
-        # Check field items count: 1 (Player) + 3 (Fields) + 1 (Total) = 5
-        assert len(dlg.field_items) == 5
+        # Check field items count: 1 (Player) + 4 (Fields) + 1 (Total) = 6
+        assert len(dlg.field_items) == 6
 
         # Field 1: Player info
         assert dlg.field_items[0].title == "Имя Фамилия | статик"
@@ -141,50 +148,82 @@ def test_report_dialog_individual_fields(qapp):
         assert dlg.field_items[2].title == "ПМП ночь (Город)"
         assert dlg.field_items[2].get_text() == '(6 шт - 18 б)'
 
-        # Field 4: Discord links with individual counts and subtotal
-        assert dlg.field_items[3].title == "Отчёты в спец. связи"
+        # Field 4: Simple links
+        assert dlg.field_items[3].title == "Простые ссылки"
         f3_text = dlg.field_items[3].get_text()
-        assert "https://discord.com/msg1 (3 шт - 9 б)" in f3_text
-        assert "https://discord.com/msg2 (2 шт - 6 б)" in f3_text
-        assert "(5 шт - 15 б)" in f3_text
+        assert "https://discord.com/p1" in f3_text
+        assert "(2 шт - 4 б)" in f3_text
 
-        # Field 5: Total points (20 + 18 + 15 = 53)
-        assert dlg.field_items[4].title == "Общее количество баллов"
-        assert dlg.field_items[4].get_text() == '53'
+        # Field 5: Discord links with individual counts and subtotal
+        assert dlg.field_items[4].title == "Отчёты в спец. связи с задачами"
+        f4_text = dlg.field_items[4].get_text()
+        assert "https://discord.com/msg1 (3 шт - 9 б)" in f4_text
+        assert "https://discord.com/msg2 (2 шт - 6 б)" in f4_text
+        assert "(5 шт - 15 б)" in f4_text
+
+        # Field 6: Total points (20 + 18 + 4 + 15 = 57)
+        assert dlg.field_items[5].title == "Общее количество баллов"
+        assert dlg.field_items[5].get_text() == '57'
 
         dlg.close()
         window.close()
 
 
-def test_links_card_and_edit_dialog(qapp):
-    """Verify links field card and EditLinksDialog with task quantities per link."""
+def test_simple_links_card_and_dialog(qapp):
+    """Verify simple links field card and EditSimpleLinksDialog."""
+    field = ReportField(
+        id="simple-lnk-gui",
+        name="Аудиты в Discord",
+        field_type=FieldType.LINKS,
+        points_per_unit=5.0,
+        simple_links=["https://discord.com/1", "https://discord.com/2"]
+    )
+    card = FieldCardWidget(field)
+    assert card.badge_lbl.text() == "(2 шт - 10 б)"
+    assert "Введено: 2 шт." in card.info_lbl.text()
+    assert card.icon_lbl.text() == "🔗"
+
+    dlg = EditSimpleLinksDialog(parent=card, field_name=field.name, links=field.simple_links, points_per_unit=field.points_per_unit)
+    assert "Ссылок: 2 шт." in dlg.stats_lbl.text()
+    assert "10 б." in dlg.stats_lbl.text()
+
+    dlg.editor.appendPlainText("https://discord.com/3")
+    assert "Ссылок: 3 шт." in dlg.stats_lbl.text()
+    assert "15 б." in dlg.stats_lbl.text()
+
+    dlg.validate_and_save()
+    assert len(dlg.result_links) == 3
+
+    card.deleteLater()
+    dlg.deleteLater()
+    qapp.processEvents()
+
+
+def test_links_with_tasks_card_and_dialog(qapp):
+    """Verify links with tasks field card and EditLinksDialog."""
     items = [
         DiscordLinkItem(url="https://discord.com/1", count=2),
         DiscordLinkItem(url="https://discord.com/2", count=3)
     ]
     field = ReportField(
-        id="lnk-gui",
-        name="Отчёты в спец. связи (Discord)",
-        field_type=FieldType.LINKS,
+        id="tasks-lnk-gui",
+        name="Отчёты в спец. связи с задачами",
+        field_type=FieldType.LINKS_WITH_TASKS,
         points_per_unit=4.0,
         links=items
     )
     card = FieldCardWidget(field)
 
-    # 2 + 3 = 5 tasks * 4 = 20 pts
     assert card.badge_lbl.text() == "(5 шт - 20 б)"
     assert "Всего задач: 5 шт." in card.info_lbl.text()
-    assert card.links_btn.text() == "🔗 Ссылки (2)"
+    assert card.icon_lbl.text() == "💬"
 
-    # Test EditLinksDialog
     dlg = EditLinksDialog(parent=card, field_name=field.name, items=field.get_discord_link_items(), points_per_unit=field.points_per_unit)
     assert "Ссылок: 2 шт." in dlg.stats_lbl.text()
     assert "20 б." in dlg.stats_lbl.text()
 
-    # Add a row
     new_row = dlg.add_row(DiscordLinkItem(url="https://discord.com/3", count=4))
     assert "Ссылок: 3 шт." in dlg.stats_lbl.text()
-    # 5 + 4 = 9 tasks * 4 = 36 pts
     assert "36 б." in dlg.stats_lbl.text()
 
     dlg.validate_and_save()
@@ -230,14 +269,11 @@ def test_edit_tab_dialog_clean_structure_and_enter_key(qapp):
     dlg = EditTabDialog()
     dlg.show()
 
-    # Verify no code_edit exists
     assert not hasattr(dlg, "code_edit")
 
-    # Enter title
     dlg.title_edit.setText("Тестовая вкладка")
     dlg.desc_edit.setText("Описание вкладки")
 
-    # Simulate pressing Enter
     event = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Return, Qt.NoModifier)
     dlg.keyPressEvent(event)
 
@@ -250,23 +286,41 @@ def test_edit_tab_dialog_clean_structure_and_enter_key(qapp):
     qapp.processEvents()
 
 
-def test_edit_field_dialog_enter_key(qapp):
-    """Verify EditFieldDialog executes save on Enter key."""
+def test_edit_field_dialog_all_four_types_and_enter_key(qapp):
+    """Verify EditFieldDialog supports all four types and saves on Enter."""
     from PySide6.QtGui import QKeyEvent
 
     dlg = EditFieldDialog()
     dlg.show()
 
+    assert dlg.type_combo.count() == 4
+    assert dlg.type_combo.itemData(0) == FieldType.FOLDER
+    assert dlg.type_combo.itemData(1) == FieldType.NUMERIC
+    assert dlg.type_combo.itemData(2) == FieldType.LINKS
+    assert dlg.type_combo.itemData(3) == FieldType.LINKS_WITH_TASKS
+
+    # Switch to FieldType.LINKS
+    dlg.type_combo.setCurrentIndex(2)
+    assert dlg.simple_links_container.isVisible() is True
+    assert dlg.tasks_links_container.isVisible() is False
+    assert dlg.cloud_link_container.isVisible() is False
+
+    # Switch to FieldType.LINKS_WITH_TASKS
+    dlg.type_combo.setCurrentIndex(3)
+    assert dlg.simple_links_container.isVisible() is False
+    assert dlg.tasks_links_container.isVisible() is True
+    assert dlg.cloud_link_container.isVisible() is False
+
     dlg.name_edit.setText("Тестовое поле Enter")
     dlg.points_spin.setValue(3.5)
 
-    # Press Enter
     event = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Return, Qt.NoModifier)
     dlg.keyPressEvent(event)
 
     assert dlg.result_field is not None
     assert dlg.result_field.name == "Тестовое поле Enter"
     assert dlg.result_field.points_per_unit == 3.5
+    assert dlg.result_field.field_type == FieldType.LINKS_WITH_TASKS
 
     dlg.close()
     dlg.deleteLater()

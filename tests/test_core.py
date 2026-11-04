@@ -88,12 +88,37 @@ def test_folder_batch_threshold_calculation():
         assert field.format_status_text() == "(7 шт - 14 б)"
 
 
-def test_discord_links_with_tasks_calculation_and_report():
-    """Verify links field counts tasks per link and formats report accurately."""
+def test_simple_links_field_calculation_and_report():
+    """Verify FieldType.LINKS counts simple links (points awarded per link)."""
     f = ReportField(
-        id="lnk-1",
-        name="Отчёт в Discord",
+        id="simple-lnk-1",
+        name="Аудиты в Discord",
         field_type=FieldType.LINKS,
+        points_per_unit=5.0,
+        simple_links=[
+            "https://discord.com/channels/1/2/1",
+            "   ",  # Ignored
+            "https://discord.com/channels/1/2/2",
+            "https://discord.com/channels/1/2/3"
+        ]
+    )
+
+    assert f.get_count() == 3
+    assert f.calculate_points() == 15.0
+    assert f.format_status_text() == "(3 шт - 15 б)"
+
+    entry_nl = f.format_report_entry(join_with_newline=True)
+    assert "https://discord.com/channels/1/2/1" in entry_nl
+    assert "https://discord.com/channels/1/2/3" in entry_nl
+    assert "(3 шт - 15 б)" in entry_nl
+
+
+def test_links_with_tasks_calculation_and_report():
+    """Verify FieldType.LINKS_WITH_TASKS counts tasks per link and formats report accurately."""
+    f = ReportField(
+        id="task-lnk-1",
+        name="Отчёт в Discord с задачами",
+        field_type=FieldType.LINKS_WITH_TASKS,
         points_per_unit=3.0,
         links=[
             DiscordLinkItem(url="https://discord.com/channels/1/2/1", count=3),

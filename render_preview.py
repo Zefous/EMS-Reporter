@@ -1,4 +1,4 @@
-"""Script to generate visual previews of EMS Reporter with latest features."""
+"""Script to generate visual previews of EMS Reporter with all 4 field types."""
 
 import os
 import shutil
@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication
 
 from app.main_window import MainWindow
 from app.report_dialog import ReportPreviewDialog
-from app.dialogs import EditLinksDialog
+from app.dialogs import EditLinksDialog, EditSimpleLinksDialog
 from app.theme import MEDICAL_QSS
 from app.models import ReportField, FieldType, DepartmentTab, DiscordLinkItem
 
@@ -48,8 +48,8 @@ def create_demo_screenshot():
     win.grab().save(empty_path)
     print(f"Empty preview saved to {empty_path}")
 
-    # Now create a demo tab
-    discord_items = [
+    # Now create a demo tab with all 4 field types
+    discord_task_items = [
         DiscordLinkItem(url="https://discord.com/channels/1182357036315451412/1182745050233458828/1567539641345773609", count=3),
         DiscordLinkItem(url="https://discord.com/channels/1182357036315451412/1182745050233458828/1567539349388656681", count=2),
         DiscordLinkItem(url="https://discord.com/channels/1182357036315451412/1182745050233458828/1567505934501023757", count=5),
@@ -89,10 +89,21 @@ def create_demo_screenshot():
             ),
             ReportField(
                 id="fld-4",
-                name="Отчёты в спец. связи (Discord)",
+                name="Аудиты в спец. связи (баллы за ссылку)",
                 field_type=FieldType.LINKS,
+                points_per_unit=5.0,
+                simple_links=[
+                    "https://discord.com/channels/104928192837/104928192838/1298371928374",
+                    "https://discord.com/channels/104928192837/104928192838/1298371928375"
+                ],
+                cloud_link=""
+            ),
+            ReportField(
+                id="fld-5",
+                name="Отчёты в спец. связи (с подсчётом задач)",
+                field_type=FieldType.LINKS_WITH_TASKS,
                 points_per_unit=3.0,
-                links=discord_items,
+                links=discord_task_items,
                 cloud_link=""
             ),
         ]
@@ -109,8 +120,8 @@ def create_demo_screenshot():
 
     # Links dialog preview
     links_dlg = EditLinksDialog(
-        field_name="Отчёты в спец. связи (Discord)",
-        items=discord_items,
+        field_name="Отчёты в спец. связи (с подсчётом задач)",
+        items=discord_task_items,
         points_per_unit=3.0
     )
     links_dlg.resize(740, 500)
@@ -123,7 +134,7 @@ def create_demo_screenshot():
 
     # Report preview
     report_dlg = ReportPreviewDialog(win.config, tab=pm_tab)
-    report_dlg.resize(780, 620)
+    report_dlg.resize(780, 660)
     report_dlg.show()
     app.processEvents()
     report_path = "/home/burmalda/Кирилл/EMS reporter/report_preview.png"

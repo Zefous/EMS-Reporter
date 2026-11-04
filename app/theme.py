@@ -151,6 +151,20 @@ QTabBar::tab:hover:!selected {
     background-color: #12273e;
 }
 
+.FieldCardTasks {
+    background-color: #102235;
+    border: 1px solid #1c3652;
+    border-left: 3px solid #8b5cf6;
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+.FieldCardTasks:hover {
+    border-color: #7c3aed;
+    border-left: 3px solid #a78bfa;
+    background-color: #12273e;
+}
+
 /* Badges - Compact */
 #badgeScore {
     background-color: #0f3747;
@@ -188,6 +202,18 @@ QTabBar::tab:hover:!selected {
     selection-color: #ffffff;
 }
 
+#badgeTasksScore {
+    background-color: #2e1065;
+    color: #c4b5fd;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 5px;
+    border: 1px solid #8b5cf6;
+    selection-background-color: #7c3aed;
+    selection-color: #ffffff;
+}
+
 QLineEdit#badgeScore:focus {
     border: 1px solid #38bdf8;
     background-color: #123d50;
@@ -201,6 +227,11 @@ QLineEdit#badgeNumericScore:focus {
 QLineEdit#badgeLinksScore:focus {
     border: 1px solid #818cf8;
     background-color: #2e2a72;
+}
+
+QLineEdit#badgeTasksScore:focus {
+    border: 1px solid #a78bfa;
+    background-color: #3b147d;
 }
 
 /* Buttons - Compact */

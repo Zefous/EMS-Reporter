@@ -31,6 +31,136 @@ from app.models import ReportField, FieldType, DepartmentTab, DiscordLinkItem
 from app.smooth_scroll import SmoothScrollArea
 
 
+class EditSimpleLinksDialog(QDialog):
+    """Dialog to paste and count simple links (points awarded per link)."""
+
+    def __init__(
+        self,
+        parent=None,
+        field_name: str = "",
+        links: Optional[List[str]] = None,
+        points_per_unit: float = 1.0
+    ):
+        super().__init__(parent)
+        self.field_name = field_name
+        self.points_per_unit = points_per_unit
+        self.result_links: List[str] = []
+
+        self.setWindowTitle(f"🔗 Ссылки на сообщения: {field_name}")
+        self.resize(680, 500)
+        self.setMinimumSize(520, 380)
+
+        self.setup_ui()
+        if links:
+            self.editor.setPlainText("\n".join(links))
+        self.update_stats()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+
+        header = QFrame()
+        header.setStyleSheet("background-color: #0f2234; border: 1px solid #1a3650; border-radius: 6px; padding: 8px 12px;")
+        h_layout = QVBoxLayout(header)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+        h_layout.setSpacing(2)
+
+        title = QLabel(f"🔗 Ссылки на сообщения: {self.field_name}")
+        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #818cf8;")
+        desc = QLabel(
+            "Вставьте ссылки на сообщения из Discord или других источников (по одной на строку).\n"
+            "Каждая ссылка считается как 1 единица и умножается на установленное число баллов."
+        )
+        desc.setStyleSheet("font-size: 11px; color: #94a3b8;")
+
+        h_layout.addWidget(title)
+        h_layout.addWidget(desc)
+        layout.addWidget(header)
+
+        # Text Editor
+        self.editor = QPlainTextEdit()
+        self.editor.setPlaceholderText(
+            "https://discord.com/channels/...\n"
+            "https://discord.com/channels/...\n"
+            "https://discord.com/channels/..."
+        )
+        self.editor.setStyleSheet(
+            "font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; background-color: #07101b;"
+        )
+        self.editor.textChanged.connect(self.update_stats)
+
+        # Action bar & stats
+        action_bar = QHBoxLayout()
+        action_bar.setSpacing(8)
+
+        self.stats_lbl = QLabel()
+        self.stats_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #38bdf8;")
+        action_bar.addWidget(self.stats_lbl, 1)
+
+        self.paste_btn = QPushButton("📋 Вставить из буфера")
+        self.paste_btn.setObjectName("secondaryButton")
+        self.paste_btn.clicked.connect(self.paste_from_clipboard)
+
+        self.clear_btn = QPushButton("🗑 Очистить")
+        self.clear_btn.setObjectName("secondaryButton")
+        self.clear_btn.clicked.connect(self.editor.clear)
+
+        action_bar.addWidget(self.paste_btn)
+        action_bar.addWidget(self.clear_btn)
+        layout.addLayout(action_bar)
+        layout.addWidget(self.editor, 1)
+
+        # Bottom Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        self.cancel_btn = QPushButton("Отмена")
+        self.cancel_btn.setObjectName("secondaryButton")
+        self.cancel_btn.setAutoDefault(False)
+        self.cancel_btn.clicked.connect(self.reject)
+
+        self.save_btn = QPushButton("💾 Сохранить ссылки")
+        self.save_btn.setObjectName("primaryButton")
+        self.save_btn.setDefault(True)
+        self.save_btn.clicked.connect(self.validate_and_save)
+
+        btn_layout.addWidget(self.cancel_btn)
+        btn_layout.addWidget(self.save_btn)
+        layout.addLayout(btn_layout)
+
+    def get_lines(self) -> List[str]:
+        return [line.strip() for line in self.editor.toPlainText().splitlines() if line.strip()]
+
+    def update_stats(self):
+        lines = self.get_lines()
+        cnt = len(lines)
+        pts = round(cnt * self.points_per_unit, 2)
+        pts_str = f"{int(pts)}" if pts.is_integer() else f"{pts:.1f}"
+        rate_str = f"{int(self.points_per_unit)}" if self.points_per_unit.is_integer() else f"{self.points_per_unit:.1f}"
+        self.stats_lbl.setText(f"Ссылок: {cnt} шт. • Итого: {pts_str} б. ({rate_str} б/ссылка)")
+
+    def paste_from_clipboard(self):
+        text = QApplication.clipboard().text()
+        if text:
+            cur = self.editor.toPlainText().strip()
+            if cur:
+                self.editor.setPlainText(cur + "\n" + text.strip())
+            else:
+                self.editor.setPlainText(text.strip())
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if event.modifiers() & Qt.ControlModifier:
+                self.validate_and_save()
+                return
+        super().keyPressEvent(event)
+
+    def validate_and_save(self):
+        self.result_links = self.get_lines()
+        self.accept()
+
+
 class LinkRowWidget(QWidget):
     """Single row representing one Discord link with its task count."""
 
@@ -120,7 +250,7 @@ class EditLinksDialog(QDialog):
         self.result_items: List[DiscordLinkItem] = []
         self.row_widgets: List[LinkRowWidget] = []
 
-        self.setWindowTitle(f"🔗 Ссылки на сообщения: {field_name}")
+        self.setWindowTitle(f"💬 Ссылки с задачами: {field_name}")
         self.resize(740, 520)
         self.setMinimumSize(580, 400)
 
@@ -147,11 +277,11 @@ class EditLinksDialog(QDialog):
         h_layout.setContentsMargins(0, 0, 0, 0)
         h_layout.setSpacing(2)
 
-        title = QLabel(f"🔗 Ссылки на сообщения: {self.field_name}")
-        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #818cf8;")
+        title = QLabel(f"💬 Ссылки с подсчётом задач: {self.field_name}")
+        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #a78bfa;")
         desc = QLabel(
             "Для каждой ссылки укажите количество выполненных задач. "
-            "Баллы рассчитываются как: (Кол-во задач × Баллы за единицу)."
+            "Баллы рассчитываются как: (Кол-во задач × Баллы за задачу)."
         )
         desc.setStyleSheet("font-size: 11px; color: #94a3b8;")
 
@@ -167,7 +297,7 @@ class EditLinksDialog(QDialog):
         self.stats_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #38bdf8;")
         action_bar.addWidget(self.stats_lbl, 1)
 
-        self.add_btn = QPushButton("➕ Добавить ссылку")
+        self.add_btn = QPushButton("➕ Добавить строку")
         self.add_btn.setObjectName("primaryButton")
         self.add_btn.clicked.connect(lambda: self.add_row())
 
@@ -207,7 +337,7 @@ class EditLinksDialog(QDialog):
         self.cancel_btn.setAutoDefault(False)
         self.cancel_btn.clicked.connect(self.reject)
 
-        self.save_btn = QPushButton("💾 Сохранить ссылки")
+        self.save_btn = QPushButton("💾 Сохранить задачи")
         self.save_btn.setObjectName("primaryButton")
         self.save_btn.setDefault(True)
         self.save_btn.clicked.connect(self.validate_and_save)
@@ -260,11 +390,8 @@ class EditLinksDialog(QDialog):
 
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         for line in lines:
-            # Check if line contains a URL and possibly a count
-            # e.g. "https://discord.com/... (3 шт - 9 б)" or "https://discord.com/... 3"
             count = 1
             url = line
-            # Regex for number near end
             match = re.search(r'^(https?://\S+)\s*(?:[\(\[\{]?(\d+)\s*(?:шт|ед|б)?[\)\]\}]?)?', line)
             if match:
                 url = match.group(1)
@@ -295,6 +422,7 @@ class EditFieldDialog(QDialog):
         super().__init__(parent)
         self.field = field
         self.result_field: Optional[ReportField] = None
+        self._current_simple_links: List[str] = []
         self._current_discord_links: List[DiscordLinkItem] = []
 
         self.setWindowTitle("Настройка поля" if field else "Добавить новое поле")
@@ -314,14 +442,15 @@ class EditFieldDialog(QDialog):
         header.setStyleSheet("font-size: 14px; font-weight: bold; color: #38bdf8;")
         layout.addWidget(header)
 
-        # Field Type selector
+        # Field Type selector (4 types)
         type_layout = QVBoxLayout()
         type_lbl = QLabel("Тип поля:")
         type_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
         self.type_combo = QComboBox()
         self.type_combo.addItem("📁 Папка со скриншотами (автоподсчёт файлов)", FieldType.FOLDER)
         self.type_combo.addItem("🔢 Числовое поле (ручной ввод)", FieldType.NUMERIC)
-        self.type_combo.addItem("🔗 Ссылки на сообщения (Discord и др.)", FieldType.LINKS)
+        self.type_combo.addItem("🔗 Ссылки на сообщения (баллы за каждую ссылку)", FieldType.LINKS)
+        self.type_combo.addItem("💬 Ссылки с подсчётом задач (баллы за задачи)", FieldType.LINKS_WITH_TASKS)
         self.type_combo.currentIndexChanged.connect(self.on_type_changed)
         type_layout.addWidget(type_lbl)
         type_layout.addWidget(self.type_combo)
@@ -418,35 +547,58 @@ class EditFieldDialog(QDialog):
         layout.addWidget(self.numeric_container)
         self.numeric_container.hide()
 
-        # 3. Links container (for FieldType.LINKS)
-        self.links_container = QFrame()
-        links_box = QVBoxLayout(self.links_container)
-        links_box.setContentsMargins(0, 0, 0, 0)
-        links_box.setSpacing(6)
-        links_lbl = QLabel("Ссылки на сообщения в Discord:")
-        links_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        # 3. Simple Links container (for FieldType.LINKS)
+        self.simple_links_container = QFrame()
+        slinks_box = QVBoxLayout(self.simple_links_container)
+        slinks_box.setContentsMargins(0, 0, 0, 0)
+        slinks_box.setSpacing(6)
+        slinks_lbl = QLabel("Ссылки на сообщения (баллы за каждую ссылку):")
+        slinks_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
 
-        links_btn_row = QHBoxLayout()
-        self.config_links_btn = QPushButton("🔗 Настроить ссылки и количество задач...")
-        self.config_links_btn.setObjectName("secondaryButton")
-        self.config_links_btn.clicked.connect(self.open_links_config_dialog)
-        self.links_summary_lbl = QLabel("0 ссылок")
-        self.links_summary_lbl.setStyleSheet("color: #a5b4fc; font-weight: 600;")
-        links_btn_row.addWidget(self.config_links_btn)
-        links_btn_row.addWidget(self.links_summary_lbl)
-        links_btn_row.addStretch()
+        slinks_btn_row = QHBoxLayout()
+        self.config_simple_links_btn = QPushButton("🔗 Вставить ссылки (список)...")
+        self.config_simple_links_btn.setObjectName("secondaryButton")
+        self.config_simple_links_btn.clicked.connect(self.open_simple_links_config_dialog)
+        self.simple_links_summary_lbl = QLabel("0 ссылок")
+        self.simple_links_summary_lbl.setStyleSheet("color: #a5b4fc; font-weight: 600;")
+        slinks_btn_row.addWidget(self.config_simple_links_btn)
+        slinks_btn_row.addWidget(self.simple_links_summary_lbl)
+        slinks_btn_row.addStretch()
 
-        links_box.addWidget(links_lbl)
-        links_box.addLayout(links_btn_row)
-        layout.addWidget(self.links_container)
-        self.links_container.hide()
+        slinks_box.addWidget(slinks_lbl)
+        slinks_box.addLayout(slinks_btn_row)
+        layout.addWidget(self.simple_links_container)
+        self.simple_links_container.hide()
 
-        # Standard Points per unit (used for Folder when batch off, Numeric, and Links per task)
+        # 4. Links with Tasks container (for FieldType.LINKS_WITH_TASKS)
+        self.tasks_links_container = QFrame()
+        tlinks_box = QVBoxLayout(self.tasks_links_container)
+        tlinks_box.setContentsMargins(0, 0, 0, 0)
+        tlinks_box.setSpacing(6)
+        tlinks_lbl = QLabel("Ссылки на сообщения с подсчётом задач:")
+        tlinks_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+
+        tlinks_btn_row = QHBoxLayout()
+        self.config_tasks_links_btn = QPushButton("💬 Настроить ссылки и количество задач...")
+        self.config_tasks_links_btn.setObjectName("secondaryButton")
+        self.config_tasks_links_btn.clicked.connect(self.open_tasks_links_config_dialog)
+        self.tasks_links_summary_lbl = QLabel("0 ссылок (0 задач)")
+        self.tasks_links_summary_lbl.setStyleSheet("color: #c4b5fd; font-weight: 600;")
+        tlinks_btn_row.addWidget(self.config_tasks_links_btn)
+        tlinks_btn_row.addWidget(self.tasks_links_summary_lbl)
+        tlinks_btn_row.addStretch()
+
+        tlinks_box.addWidget(tlinks_lbl)
+        tlinks_box.addLayout(tlinks_btn_row)
+        layout.addWidget(self.tasks_links_container)
+        self.tasks_links_container.hide()
+
+        # Standard Points per unit
         self.points_container = QFrame()
         pts_layout = QVBoxLayout(self.points_container)
         pts_layout.setContentsMargins(0, 0, 0, 0)
         pts_layout.setSpacing(4)
-        self.pts_lbl = QLabel("Баллов за 1 скриншот / единицу / задачу:")
+        self.pts_lbl = QLabel("Баллов за 1 скриншот / единицу / ссылку:")
         self.pts_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
         self.points_spin = QDoubleSpinBox()
         self.points_spin.setRange(0.0, 1000.0)
@@ -457,7 +609,7 @@ class EditFieldDialog(QDialog):
         pts_layout.addWidget(self.points_spin)
         layout.addWidget(self.points_container)
 
-        # Cloud Link (Optional for FOLDER and NUMERIC, hidden for LINKS)
+        # Cloud Link (Optional for FOLDER and NUMERIC, hidden for links)
         self.cloud_link_container = QFrame()
         link_layout = QVBoxLayout(self.cloud_link_container)
         link_layout.setContentsMargins(0, 0, 0, 0)
@@ -510,24 +662,35 @@ class EditFieldDialog(QDialog):
         if ft == FieldType.FOLDER:
             self.folder_container.show()
             self.numeric_container.hide()
-            self.links_container.hide()
+            self.simple_links_container.hide()
+            self.tasks_links_container.hide()
             self.cloud_link_container.show()
             self.pts_lbl.setText("Баллов за 1 скриншот:")
             self.on_batch_mode_toggled(self.batch_mode_chk.isChecked())
         elif ft == FieldType.NUMERIC:
             self.folder_container.hide()
             self.numeric_container.show()
-            self.links_container.hide()
+            self.simple_links_container.hide()
+            self.tasks_links_container.hide()
             self.cloud_link_container.show()
             self.points_container.show()
             self.pts_lbl.setText("Баллов за 1 единицу действия:")
         elif ft == FieldType.LINKS:
             self.folder_container.hide()
             self.numeric_container.hide()
-            self.links_container.show()
+            self.simple_links_container.show()
+            self.tasks_links_container.hide()
             self.cloud_link_container.hide()
             self.points_container.show()
-            self.pts_lbl.setText("Баллов за 1 задачу в ссылке:")
+            self.pts_lbl.setText("Баллов за 1 ссылку на сообщение:")
+        elif ft == FieldType.LINKS_WITH_TASKS:
+            self.folder_container.hide()
+            self.numeric_container.hide()
+            self.simple_links_container.hide()
+            self.tasks_links_container.show()
+            self.cloud_link_container.hide()
+            self.points_container.show()
+            self.pts_lbl.setText("Баллов за 1 выполненную задачу:")
 
     def choose_folder(self):
         curr = self.folder_edit.text() if os.path.exists(self.folder_edit.text()) else ""
@@ -535,34 +698,53 @@ class EditFieldDialog(QDialog):
         if folder:
             self.folder_edit.setText(folder)
 
-    def open_links_config_dialog(self):
+    def open_simple_links_config_dialog(self):
         name = self.name_edit.text().strip() or "Ссылки"
+        rate = self.points_spin.value()
+        dlg = EditSimpleLinksDialog(self, field_name=name, links=self._current_simple_links, points_per_unit=rate)
+        if dlg.exec():
+            self._current_simple_links = dlg.result_links
+            self._update_simple_links_summary()
+
+    def open_tasks_links_config_dialog(self):
+        name = self.name_edit.text().strip() or "Ссылки с задачами"
         rate = self.points_spin.value()
         dlg = EditLinksDialog(self, field_name=name, items=self._current_discord_links, points_per_unit=rate)
         if dlg.exec():
             self._current_discord_links = dlg.result_items
-            self._update_links_summary()
+            self._update_tasks_links_summary()
 
-    def _update_links_summary(self):
+    def _update_simple_links_summary(self):
+        cnt = len([s for s in self._current_simple_links if s.strip()])
+        self.simple_links_summary_lbl.setText(f"{cnt} ссылок")
+
+    def _update_tasks_links_summary(self):
         cnt = len([it for it in self._current_discord_links if it.url.strip()])
         tot_tasks = sum(it.count for it in self._current_discord_links if it.url.strip())
-        self.links_summary_lbl.setText(f"{cnt} ссылок ({tot_tasks} задач)")
+        self.tasks_links_summary_lbl.setText(f"{cnt} ссылок ({tot_tasks} задач)")
 
     def load_field_data(self, f: ReportField):
         if f.field_type == FieldType.FOLDER:
             idx = 0
         elif f.field_type == FieldType.NUMERIC:
             idx = 1
-        else:
+        elif f.field_type == FieldType.LINKS:
             idx = 2
+        else:
+            idx = 3
 
         self.type_combo.setCurrentIndex(idx)
         self.name_edit.setText(f.name)
         self.folder_edit.setText(f.folder_path)
         self.points_spin.setValue(f.points_per_unit)
         self.manual_spin.setValue(f.manual_count)
+
+        self._current_simple_links = f.get_clean_simple_links()
+        self._update_simple_links_summary()
+
         self._current_discord_links = f.get_discord_link_items()
-        self._update_links_summary()
+        self._update_tasks_links_summary()
+
         self.cloud_link_edit.setText(f.cloud_link or "")
 
         # Batch mode
@@ -592,7 +774,7 @@ class EditFieldDialog(QDialog):
         pts = self.points_spin.value()
         folder = self.folder_edit.text().strip() if ft == FieldType.FOLDER else ""
         manual = self.manual_spin.value() if ft == FieldType.NUMERIC else 0
-        cloud_link = self.cloud_link_edit.text().strip() if ft != FieldType.LINKS else ""
+        cloud_link = self.cloud_link_edit.text().strip() if ft in (FieldType.FOLDER, FieldType.NUMERIC) else ""
 
         batch_enabled = self.batch_mode_chk.isChecked() if ft == FieldType.FOLDER else False
         batch_size = self.batch_size_spin.value()
@@ -607,7 +789,8 @@ class EditFieldDialog(QDialog):
             folder_path=folder,
             points_per_unit=pts,
             manual_count=manual,
-            links=self._current_discord_links if ft == FieldType.LINKS else [],
+            simple_links=self._current_simple_links if ft == FieldType.LINKS else [],
+            links=self._current_discord_links if ft == FieldType.LINKS_WITH_TASKS else [],
             batch_mode_enabled=batch_enabled,
             batch_size=batch_size,
             batch_points=batch_pts,

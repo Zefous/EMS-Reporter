@@ -1,4 +1,4 @@
-"""Interactive card widgets for ReportField (Folder, Numeric, and Links)."""
+"""Interactive card widgets for ReportField (Folder, Numeric, Simple Links, and Links with Tasks)."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import ReportField, FieldType
-from app.dialogs import EditFieldDialog, EditLinksDialog
+from app.dialogs import EditFieldDialog, EditSimpleLinksDialog, EditLinksDialog
 
 
 class FieldCardWidget(QFrame):
@@ -44,6 +44,8 @@ class FieldCardWidget(QFrame):
             self.setProperty("class", "FieldCardNumeric")
         elif field.field_type == FieldType.LINKS:
             self.setProperty("class", "FieldCardLinks")
+        elif field.field_type == FieldType.LINKS_WITH_TASKS:
+            self.setProperty("class", "FieldCardTasks")
         else:
             self.setProperty("class", "FieldCard")
 
@@ -67,8 +69,10 @@ class FieldCardWidget(QFrame):
             icon_text = "📁"
         elif self.field.field_type == FieldType.NUMERIC:
             icon_text = "🔢"
-        else:
+        elif self.field.field_type == FieldType.LINKS:
             icon_text = "🔗"
+        else:
+            icon_text = "💬"
 
         self.icon_lbl = QLabel(icon_text)
         self.icon_lbl.setStyleSheet("font-size: 14px;")
@@ -117,11 +121,27 @@ class FieldCardWidget(QFrame):
             self.links_btn.setObjectName("secondaryButton")
             self.links_btn.setFixedHeight(24)
             self.links_btn.setStyleSheet("font-size: 11px; padding: 2px 8px; color: #a5b4fc;")
-            self.links_btn.clicked.connect(self.open_links_dialog)
+            self.links_btn.clicked.connect(self.open_simple_links_dialog)
 
             links_row.addWidget(self.info_lbl, 1)
             links_row.addWidget(self.links_btn)
             left_layout.addLayout(links_row)
+        elif self.field.field_type == FieldType.LINKS_WITH_TASKS:
+            tasks_row = QHBoxLayout()
+            tasks_row.setSpacing(6)
+
+            self.info_lbl = QLabel()
+            self.info_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+
+            self.tasks_btn = QPushButton("💬 Задачи (0)")
+            self.tasks_btn.setObjectName("secondaryButton")
+            self.tasks_btn.setFixedHeight(24)
+            self.tasks_btn.setStyleSheet("font-size: 11px; padding: 2px 8px; color: #c4b5fd;")
+            self.tasks_btn.clicked.connect(self.open_tasks_links_dialog)
+
+            tasks_row.addWidget(self.info_lbl, 1)
+            tasks_row.addWidget(self.tasks_btn)
+            left_layout.addLayout(tasks_row)
         else:
             # Numeric field
             self.info_lbl = QLabel()
@@ -157,6 +177,8 @@ class FieldCardWidget(QFrame):
             self.badge_lbl.setObjectName("badgeNumericScore")
         elif self.field.field_type == FieldType.LINKS:
             self.badge_lbl.setObjectName("badgeLinksScore")
+        elif self.field.field_type == FieldType.LINKS_WITH_TASKS:
+            self.badge_lbl.setObjectName("badgeTasksScore")
         else:
             self.badge_lbl.setObjectName("badgeScore")
         self.badge_lbl.setFixedHeight(26)
@@ -228,16 +250,33 @@ class FieldCardWidget(QFrame):
         if hasattr(self, "info_lbl"):
             pts_val = f"{int(self.field.points_per_unit)}" if self.field.points_per_unit.is_integer() else f"{self.field.points_per_unit:.1f}"
             if self.field.field_type == FieldType.LINKS:
+                cnt = len(self.field.get_clean_simple_links())
+                self.info_lbl.setText(f"Ссылки на сообщения • Введено: {cnt} шт. • Ценность: {pts_val} б/ссылка")
+                if hasattr(self, "links_btn"):
+                    self.links_btn.setText(f"🔗 Ссылки ({cnt})")
+            elif self.field.field_type == FieldType.LINKS_WITH_TASKS:
                 items = self.field.get_discord_link_items()
                 link_cnt = len(items)
                 task_cnt = sum(it.count for it in items)
-                self.info_lbl.setText(f"Ссылки: {link_cnt} шт. • Всего задач: {task_cnt} шт. • Ценность: {pts_val} б/ед")
-                if hasattr(self, "links_btn"):
-                    self.links_btn.setText(f"🔗 Ссылки ({link_cnt})")
+                self.info_lbl.setText(f"Ссылки с задачами • Ссылок: {link_cnt} шт. • Всего задач: {task_cnt} шт. • Ценность: {pts_val} б/ед")
+                if hasattr(self, "tasks_btn"):
+                    self.tasks_btn.setText(f"💬 Задачи ({link_cnt})")
             else:
                 self.info_lbl.setText(f"Ручной ввод • Ценность: {pts_val} б. за единицу")
 
-    def open_links_dialog(self):
+    def open_simple_links_dialog(self):
+        dlg = EditSimpleLinksDialog(
+            self,
+            field_name=self.field.name,
+            links=self.field.get_clean_simple_links(),
+            points_per_unit=self.field.points_per_unit
+        )
+        if dlg.exec():
+            self.field.simple_links = dlg.result_links
+            self.refresh_display()
+            self.changed.emit()
+
+    def open_tasks_links_dialog(self):
         dlg = EditLinksDialog(
             self,
             field_name=self.field.name,
@@ -290,6 +329,7 @@ class FieldCardWidget(QFrame):
                 self.field.folder_path = rf.folder_path
                 self.field.points_per_unit = rf.points_per_unit
                 self.field.manual_count = rf.manual_count
+                self.field.simple_links = rf.simple_links
                 self.field.links = rf.links
                 self.field.batch_mode_enabled = rf.batch_mode_enabled
                 self.field.batch_size = rf.batch_size
@@ -320,8 +360,10 @@ class FieldCardWidget(QFrame):
                 icon_text = "📁"
             elif self.field.field_type == FieldType.NUMERIC:
                 icon_text = "🔢"
-            else:
+            elif self.field.field_type == FieldType.LINKS:
                 icon_text = "🔗"
+            else:
+                icon_text = "💬"
             self.icon_lbl.setText(icon_text)
 
     def refresh_display(self):
