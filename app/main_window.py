@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QStatusBar,
     QSplitter,
+    QMenu,
 )
 
 from app.models import ReporterConfig, DepartmentTab, ReportField, FieldType
@@ -31,6 +32,8 @@ from app.templates import create_default_config
 from app.dialogs import EditTabDialog
 from app.tab_page import TabPageWidget
 from app.report_dialog import ReportPreviewDialog
+from app.about_dialog import AboutDialog
+from app.help_dialog import HelpDialog
 
 
 class MainWindow(QMainWindow):
@@ -196,12 +199,43 @@ class MainWindow(QMainWindow):
 
         self.reset_btn = QPushButton("↺ Сброс")
         self.reset_btn.setObjectName("secondaryButton")
-        self.reset_btn.setToolTip("Восстановить стандартные вкладки (PM, DI, PSED, HAD)")
+        self.reset_btn.setToolTip("Очистить все вкладки и поля")
         self.reset_btn.clicked.connect(self.reset_to_default)
+
+        # Info dropdown menu (Requirement 2)
+        self.info_btn = QPushButton("ℹ Информация ▾")
+        self.info_btn.setObjectName("secondaryButton")
+        self.info_menu = QMenu(self)
+        self.info_menu.setStyleSheet("""
+            QMenu {
+                background-color: #0b1725;
+                border: 1px solid #1e3a57;
+                color: #f1f5f9;
+                padding: 4px;
+                font-size: 12px;
+            }
+            QMenu::item {
+                padding: 6px 14px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #0284c7;
+                color: #ffffff;
+            }
+        """)
+
+        about_act = self.info_menu.addAction("ℹ О программе")
+        about_act.triggered.connect(self.open_about_dialog)
+
+        guide_act = self.info_menu.addAction("📖 Руководство")
+        guide_act.triggered.connect(self.open_help_dialog)
+
+        self.info_btn.setMenu(self.info_menu)
 
         tool_layout.addWidget(self.export_btn)
         tool_layout.addWidget(self.import_btn)
         tool_layout.addWidget(self.reset_btn)
+        tool_layout.addWidget(self.info_btn)
 
         main_layout.addWidget(toolbar)
 
@@ -393,6 +427,14 @@ class MainWindow(QMainWindow):
         current_idx = self.tab_widget.currentIndex()
         active_tab = self.config.tabs[current_idx] if 0 <= current_idx < len(self.config.tabs) else None
         dlg = ReportPreviewDialog(self.config, tab=active_tab, parent=self)
+        dlg.exec()
+
+    def open_about_dialog(self):
+        dlg = AboutDialog(self)
+        dlg.exec()
+
+    def open_help_dialog(self):
+        dlg = HelpDialog(self)
         dlg.exec()
 
     def export_config(self):

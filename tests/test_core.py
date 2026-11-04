@@ -180,6 +180,29 @@ def test_config_save_load_and_export():
         assert len(imported.tabs) == 1
 
 
+def test_zero_points_returns_dash():
+    """Verify that if a field has 0 points, report entry is '-'."""
+    f_num = ReportField(
+        id="f-zero",
+        name="Реанимация",
+        field_type=FieldType.NUMERIC,
+        points_per_unit=2.0,
+        manual_count=0
+    )
+    assert f_num.calculate_points() == 0
+    assert f_num.format_report_entry() == "-"
+
+    f_links = ReportField(
+        id="f-zero-links",
+        name="Ссылки",
+        field_type=FieldType.LINKS,
+        points_per_unit=5.0,
+        simple_links=[]
+    )
+    assert f_links.calculate_points() == 0
+    assert f_links.format_report_entry() == "-"
+
+
 def test_plain_report_generation():
     """Verify plain text report matches user required format with separate fields."""
     config = create_default_config()

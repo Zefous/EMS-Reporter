@@ -6,7 +6,7 @@ import pytest
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from app.models import ReporterConfig, DepartmentTab, ReportField, FieldType, DiscordLinkItem
 from app.main_window import MainWindow
@@ -14,6 +14,8 @@ from app.theme import MEDICAL_QSS
 from app.report_dialog import ReportPreviewDialog, ReportFieldItem
 from app.field_widget import FieldCardWidget
 from app.dialogs import EditLinksDialog, EditSimpleLinksDialog, EditFieldDialog, EditTabDialog
+from app.about_dialog import AboutDialog
+from app.help_dialog import HelpDialog
 
 
 @pytest.fixture(scope="session")
@@ -127,14 +129,21 @@ def test_report_dialog_individual_fields(qapp):
                     DiscordLinkItem(url="https://discord.com/msg1", count=3),
                     DiscordLinkItem(url="https://discord.com/msg2", count=2),
                 ]
+            ),
+            ReportField(
+                id="f5",
+                name="Нулевое действие",
+                field_type=FieldType.NUMERIC,
+                points_per_unit=2.0,
+                manual_count=0
             )
         ])
 
         dlg = ReportPreviewDialog(window.config, tab=pm_tab)
         dlg.show()
 
-        # Check field items count: 1 (Player) + 4 (Fields) + 1 (Total) = 6
-        assert len(dlg.field_items) == 6
+        # Check field items count: 1 (Player) + 5 (Fields) + 1 (Total) = 7
+        assert len(dlg.field_items) == 7
 
         # Field 1: Player info
         assert dlg.field_items[0].title == "Имя Фамилия | статик"
@@ -161,9 +170,13 @@ def test_report_dialog_individual_fields(qapp):
         assert "https://discord.com/msg2 (2 шт - 6 б)" in f4_text
         assert "(5 шт - 15 б)" in f4_text
 
-        # Field 6: Total points (20 + 18 + 4 + 15 = 57)
-        assert dlg.field_items[5].title == "Общее количество баллов"
-        assert dlg.field_items[5].get_text() == '57'
+        # Field 6: Zero points field -> Requirement 1: must be just "-"
+        assert dlg.field_items[5].title == "Нулевое действие"
+        assert dlg.field_items[5].get_text() == '-'
+
+        # Field 7: Total points (20 + 18 + 4 + 15 = 57)
+        assert dlg.field_items[6].title == "Общее количество баллов"
+        assert dlg.field_items[6].get_text() == '57'
 
         dlg.close()
         window.close()
@@ -321,6 +334,47 @@ def test_edit_field_dialog_all_four_types_and_enter_key(qapp):
     assert dlg.result_field.name == "Тестовое поле Enter"
     assert dlg.result_field.points_per_unit == 3.5
     assert dlg.result_field.field_type == FieldType.LINKS_WITH_TASKS
+
+    dlg.close()
+    dlg.deleteLater()
+    qapp.processEvents()
+
+
+def test_about_dialog(qapp):
+    """Verify AboutDialog contains description, version and github link."""
+    dlg = AboutDialog()
+    dlg.show()
+
+    assert "EMS Reporter" in dlg.windowTitle()
+    labels = dlg.findChildren(QLabel)
+    texts = " ".join([l.text() for l in labels])
+    assert "https://github.com/Zefous/EMS-Reporter" in texts
+    assert "Majestic GTA V RP" in texts
+
+    dlg.close()
+    dlg.deleteLater()
+    qapp.processEvents()
+
+
+def test_help_dialog_tree_and_articles(qapp):
+    """Verify HelpDialog contains left navigation tree and renders HTML articles."""
+    dlg = HelpDialog()
+    dlg.show()
+
+    assert "Руководство пользователя" in dlg.windowTitle()
+    assert dlg.tree.topLevelItemCount() >= 5
+
+    # Check first item text
+    intro_item = dlg.tree.topLevelItem(0)
+    dlg.tree.setCurrentItem(intro_item)
+    qapp.processEvents()
+    assert "Руководство пользователя EMS Reporter" in dlg.browser.toHtml()
+
+    # Check second item (Tabs)
+    tabs_item = dlg.tree.topLevelItem(1)
+    dlg.tree.setCurrentItem(tabs_item)
+    qapp.processEvents()
+    assert "Управление вкладками" in dlg.browser.toHtml()
 
     dlg.close()
     dlg.deleteLater()

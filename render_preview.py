@@ -11,6 +11,8 @@ from PySide6.QtWidgets import QApplication
 from app.main_window import MainWindow
 from app.report_dialog import ReportPreviewDialog
 from app.dialogs import EditLinksDialog, EditSimpleLinksDialog
+from app.about_dialog import AboutDialog
+from app.help_dialog import HelpDialog
 from app.theme import MEDICAL_QSS
 from app.models import ReportField, FieldType, DepartmentTab, DiscordLinkItem
 
@@ -106,6 +108,14 @@ def create_demo_screenshot():
                 links=discord_task_items,
                 cloud_link=""
             ),
+            ReportField(
+                id="fld-6",
+                name="Реанимация за городом (ночь)",
+                field_type=FieldType.FOLDER,
+                folder_path="",
+                points_per_unit=4.0,
+                cloud_link=""
+            ),
         ]
     )
 
@@ -117,6 +127,25 @@ def create_demo_screenshot():
     screenshot_path = "/home/burmalda/Кирилл/EMS reporter/preview.png"
     win.grab().save(screenshot_path)
     print(f"Preview saved to {screenshot_path}")
+
+    # About Dialog preview
+    about_dlg = AboutDialog()
+    about_dlg.show()
+    app.processEvents()
+    about_path = "/home/burmalda/Кирилл/EMS reporter/about_preview.png"
+    about_dlg.grab().save(about_path)
+    print(f"About preview saved to {about_path}")
+    about_dlg.close()
+
+    # Help Dialog preview
+    help_dlg = HelpDialog()
+    help_dlg.resize(960, 640)
+    help_dlg.show()
+    app.processEvents()
+    help_path = "/home/burmalda/Кирилл/EMS reporter/help_preview.png"
+    help_dlg.grab().save(help_path)
+    print(f"Help preview saved to {help_path}")
+    help_dlg.close()
 
     # Links dialog preview
     links_dlg = EditLinksDialog(
@@ -134,7 +163,7 @@ def create_demo_screenshot():
 
     # Report preview
     report_dlg = ReportPreviewDialog(win.config, tab=pm_tab)
-    report_dlg.resize(780, 660)
+    report_dlg.resize(780, 680)
     report_dlg.show()
     app.processEvents()
     report_path = "/home/burmalda/Кирилл/EMS reporter/report_preview.png"

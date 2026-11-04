@@ -143,12 +143,15 @@ class ReportField(BaseModel):
         return f"({count} шт - {pts_str} б)"
 
     def format_report_entry(self, join_with_newline: bool = True) -> str:
-        """Format field value for report."""
+        """Format field value for report. If points are 0, return '-'."""
+        if self.calculate_points() == 0:
+            return "-"
+
         status = self.format_status_text()
         if self.field_type == FieldType.LINKS:
             clean = self.get_clean_simple_links()
             if not clean:
-                return status
+                return "-"
             if len(clean) == 1:
                 return f"{clean[0]} {status}"
             else:
@@ -157,7 +160,7 @@ class ReportField(BaseModel):
         elif self.field_type == FieldType.LINKS_WITH_TASKS:
             items = self.get_discord_link_items()
             if not items:
-                return status
+                return "-"
 
             lines = []
             for item in items:
