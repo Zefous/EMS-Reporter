@@ -23,6 +23,7 @@ wheels/
 
 # Virtual environments
 .venv/
+.venv_linux/
 venv/
 ENV/
 
