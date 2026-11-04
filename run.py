@@ -13,7 +13,9 @@ if str(project_root) not in sys.path:
 # Auto-switch to .venv python if running from source (not frozen in .exe)
 if not getattr(sys, "frozen", False):
     venv_windows = (project_root / ".venv" / "Scripts" / "python.exe").resolve()
-    venv_unix = (project_root / ".venv" / "bin" / "python3").resolve()
+    venv_unix = (project_root / ".venv_linux" / "bin" / "python3").resolve()
+    if not venv_unix.is_file():
+        venv_unix = (project_root / ".venv" / "bin" / "python3").resolve()
     current_exe = Path(sys.executable).resolve()
 
     if venv_windows.is_file() and current_exe != venv_windows:

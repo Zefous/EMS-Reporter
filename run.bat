@@ -2,6 +2,14 @@
 cd /d "%~dp0"
 title EMS Reporter - Majestic GTA V RP
 
+:: If Linux venv pyvenv.cfg was left behind without Windows Scripts, clean it
+if exist "%~dp0.venv\pyvenv.cfg" (
+    if not exist "%~dp0.venv\Scripts\python.exe" (
+        echo [INFO] Removing incompatible non-Windows virtualenv...
+        rd /s /q "%~dp0.venv" 2>nul
+    )
+)
+
 if exist "%~dp0.venv\Scripts\python.exe" (
     "%~dp0.venv\Scripts\python.exe" "%~dp0run.py"
     goto :done
