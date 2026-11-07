@@ -232,16 +232,16 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        update_act = self.info_menu.addAction("🔄 Проверить обновления")
-        update_act.triggered.connect(lambda: self.check_for_updates(manual=True))
-
-        self.info_menu.addSeparator()
-
         about_act = self.info_menu.addAction("ℹ О программе")
         about_act.triggered.connect(self.open_about_dialog)
 
         guide_act = self.info_menu.addAction("📖 Руководство")
         guide_act.triggered.connect(self.open_help_dialog)
+
+        self.info_menu.addSeparator()
+
+        update_act = self.info_menu.addAction("🔄 Проверить обновления")
+        update_act.triggered.connect(lambda: self.check_for_updates(manual=True))
 
         self.info_btn.setMenu(self.info_menu)
 
