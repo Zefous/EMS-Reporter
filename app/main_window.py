@@ -34,6 +34,7 @@ from app.tab_page import TabPageWidget
 from app.report_dialog import ReportPreviewDialog
 from app.about_dialog import AboutDialog
 from app.help_dialog import HelpDialog
+from app.export_import_dialogs import ExportDialog, ImportOptionsDialog
 
 
 class MainWindow(QMainWindow):
@@ -438,22 +439,18 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def export_config(self):
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Экспортировать настройки EMS Reporter",
-            "ems_preset_settings.json",
-            "JSON files (*.json);;All files (*.*)"
-        )
-        if path:
-            try:
-                ConfigManager.export_to_file(self.config, path)
-                QMessageBox.information(
-                    self,
-                    "Экспорт завершён",
-                    f"Настройки успешно сохранены в файл:\n{path}\n\nВы можете отправить этот файл коллегам по фракции."
-                )
-            except Exception as e:
-                QMessageBox.warning(self, "Ошибка экспорта", f"Не удалось сохранить настройки: {e}")
+        if not self.config.tabs:
+            QMessageBox.information(
+                self,
+                "Экспорт",
+                "В программе пока нет вкладок для экспорта.\nСоздайте хотя бы одну вкладку перед экспортом."
+            )
+            return
+
+        current_idx = self.tab_widget.currentIndex()
+        active_tab = self.config.tabs[current_idx] if 0 <= current_idx < len(self.config.tabs) else None
+        dlg = ExportDialog(self.config, active_tab=active_tab, parent=self)
+        dlg.exec()
 
     def import_config(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -462,25 +459,63 @@ class MainWindow(QMainWindow):
             "",
             "JSON files (*.json);;All files (*.*)"
         )
-        if path:
-            try:
-                imported = ConfigManager.import_from_file(path)
-                reply = QMessageBox.question(
-                    self,
-                    "Подтверждение импорта",
-                    f"Загрузить настройки из файла?\nБудет загружено {len(imported.tabs)} вкладок.",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.Yes
-                )
-                if reply == QMessageBox.Yes:
-                    self.config = imported
-                    self.name_edit.setText(self.config.player_name)
-                    self.static_edit.setText(self.config.player_static)
-                    self.rebuild_tabs()
-                    self.save_current_config()
-                    QMessageBox.information(self, "Импорт завершён", "Настройки успешно применены!")
-            except Exception as e:
-                QMessageBox.warning(self, "Ошибка импорта", f"Не удалось прочитать файл настроек:\n{e}")
+        if not path:
+            return
+
+        try:
+            imported = ConfigManager.import_from_file(path)
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка импорта", f"Не удалось прочитать файл настроек:\n{e}")
+            return
+
+        if not imported.tabs:
+            QMessageBox.information(self, "Импорт", "В выбранном файле нет вкладок для импорта.")
+            return
+
+        dlg = ImportOptionsDialog(
+            filename=path,
+            imported_config=imported,
+            current_tabs_count=len(self.config.tabs),
+            parent=self
+        )
+        if dlg.exec():
+            if dlg.selected_mode == "replace":
+                self.config.tabs = imported.tabs
+                if dlg.should_update_profile:
+                    if imported.player_name:
+                        self.config.player_name = imported.player_name
+                        self.name_edit.setText(imported.player_name)
+                    if imported.player_static:
+                        self.config.player_static = imported.player_static
+                        self.static_edit.setText(imported.player_static)
+                self.config.active_tab_id = self.config.tabs[0].id if self.config.tabs else None
+                self.rebuild_tabs()
+                self.save_current_config()
+                QMessageBox.information(self, "Импорт завершён", f"Успешно заменено. Загружено {len(imported.tabs)} вкладок.")
+            else:
+                # Append mode: ensure unique IDs so there is no collision
+                added_count = 0
+                existing_ids = {t.id for t in self.config.tabs}
+                for tab in imported.tabs:
+                    if tab.id in existing_ids:
+                        cloned_tab = tab.clone_with_new_ids()
+                    else:
+                        cloned_tab = tab
+                    self.config.tabs.append(cloned_tab)
+                    existing_ids.add(cloned_tab.id)
+                    added_count += 1
+
+                if dlg.should_update_profile:
+                    if imported.player_name:
+                        self.config.player_name = imported.player_name
+                        self.name_edit.setText(imported.player_name)
+                    if imported.player_static:
+                        self.config.player_static = imported.player_static
+                        self.static_edit.setText(imported.player_static)
+
+                self.rebuild_tabs()
+                self.save_current_config()
+                QMessageBox.information(self, "Импорт завершён", f"Успешно добавлено {added_count} новых вкладок к существующим!")
 
     def reset_to_default(self):
         reply = QMessageBox.question(

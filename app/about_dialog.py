@@ -21,7 +21,7 @@ class AboutDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("О программе — EMS Reporter")
-        self.setFixedSize(540, 420)
+        self.setFixedSize(540, 460)
         self.setup_ui()
 
     def setup_ui(self):
@@ -88,12 +88,12 @@ class AboutDialog(QDialog):
         desc_lbl.setStyleSheet("font-size: 12px; color: #cbd5e1; line-height: 1.4;")
         card_layout.addWidget(desc_lbl)
 
-        # GitHub Repo Link
-        repo_box = QVBoxLayout()
-        repo_box.setSpacing(2)
+        # GitHub Repo & Releases Links
+        links_box = QVBoxLayout()
+        links_box.setSpacing(6)
+
         repo_lbl = QLabel("Официальный репозиторий GitHub:")
         repo_lbl.setStyleSheet("font-size: 11px; font-weight: 600; color: #94a3b8;")
-
         github_link = QLabel(
             '<a href="https://github.com/Zefous/EMS-Reporter" style="color: #38bdf8; text-decoration: underline; font-weight: bold;">'
             'https://github.com/Zefous/EMS-Reporter</a>'
@@ -101,9 +101,20 @@ class AboutDialog(QDialog):
         github_link.setOpenExternalLinks(True)
         github_link.setTextInteractionFlags(Qt.TextBrowserInteraction)
 
-        repo_box.addWidget(repo_lbl)
-        repo_box.addWidget(github_link)
-        card_layout.addLayout(repo_box)
+        releases_lbl = QLabel("Страница релизов (готовые версии программы):")
+        releases_lbl.setStyleSheet("font-size: 11px; font-weight: 600; color: #94a3b8;")
+        releases_link = QLabel(
+            '<a href="https://github.com/Zefous/EMS-Reporter/releases" style="color: #38bdf8; text-decoration: underline; font-weight: bold;">'
+            'https://github.com/Zefous/EMS-Reporter/releases</a>'
+        )
+        releases_link.setOpenExternalLinks(True)
+        releases_link.setTextInteractionFlags(Qt.TextBrowserInteraction)
+
+        links_box.addWidget(repo_lbl)
+        links_box.addWidget(github_link)
+        links_box.addWidget(releases_lbl)
+        links_box.addWidget(releases_link)
+        card_layout.addLayout(links_box)
 
         layout.addWidget(card, 1)
 

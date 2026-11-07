@@ -16,6 +16,7 @@ from app.field_widget import FieldCardWidget
 from app.dialogs import EditLinksDialog, EditSimpleLinksDialog, EditFieldDialog, EditTabDialog
 from app.about_dialog import AboutDialog
 from app.help_dialog import HelpDialog
+from app.export_import_dialogs import ExportDialog, ImportOptionsDialog
 
 
 @pytest.fixture(scope="session")
@@ -341,7 +342,7 @@ def test_edit_field_dialog_all_four_types_and_enter_key(qapp):
 
 
 def test_about_dialog(qapp):
-    """Verify AboutDialog contains description, version and github link."""
+    """Verify AboutDialog contains description, version, github link and releases link."""
     dlg = AboutDialog()
     dlg.show()
 
@@ -349,6 +350,7 @@ def test_about_dialog(qapp):
     labels = dlg.findChildren(QLabel)
     texts = " ".join([l.text() for l in labels])
     assert "https://github.com/Zefous/EMS-Reporter" in texts
+    assert "https://github.com/Zefous/EMS-Reporter/releases" in texts
     assert "Majestic GTA V RP" in texts
 
     dlg.close()
@@ -357,12 +359,18 @@ def test_about_dialog(qapp):
 
 
 def test_help_dialog_tree_and_articles(qapp):
-    """Verify HelpDialog contains left navigation tree and renders HTML articles."""
+    """Verify HelpDialog contains left navigation tree without build_exe item."""
     dlg = HelpDialog()
     dlg.show()
 
     assert "Руководство пользователя" in dlg.windowTitle()
-    assert dlg.tree.topLevelItemCount() >= 5
+    assert dlg.tree.topLevelItemCount() == 5  # intro, tabs, fields, report, config (no build_exe)
+
+    # Verify build_exe is not in tree
+    all_titles = []
+    for i in range(dlg.tree.topLevelItemCount()):
+        all_titles.append(dlg.tree.topLevelItem(i).text(0))
+    assert not any("Сборка в автономный" in t for t in all_titles)
 
     # Check first item text
     intro_item = dlg.tree.topLevelItem(0)
@@ -379,3 +387,92 @@ def test_help_dialog_tree_and_articles(qapp):
     dlg.close()
     dlg.deleteLater()
     qapp.processEvents()
+
+
+def test_export_options_dialog(qapp):
+    """Verify ExportDialog options (clean template vs full data, active tab only vs all)."""
+    config = ReporterConfig(player_name="Jason Mitsui", player_static="206277", tabs=[
+        DepartmentTab(id="tab-1", title="Вкладка 1", fields=[
+            ReportField(id="f1", name="Поле 1", field_type=FieldType.FOLDER, folder_path="/fake/path", manual_count=5, cloud_link="https://cloud")
+        ]),
+        DepartmentTab(id="tab-2", title="Вкладка 2", fields=[
+            ReportField(id="f2", name="Поле 2", field_type=FieldType.NUMERIC, points_per_unit=5.0, manual_count=3)
+        ])
+    ])
+
+    dlg = ExportDialog(config, active_tab=config.tabs[0])
+    dlg.show()
+
+    # Default is template
+    assert dlg.radio_template.isChecked() is True
+    assert dlg.chk_active_only.isChecked() is False
+
+    # Test create_export_copy as template, active only
+    tpl_copy = config.create_export_copy(as_template=True, active_tab_only=True, active_tab_id="tab-1")
+    assert len(tpl_copy.tabs) == 1
+    assert tpl_copy.tabs[0].title == "Вкладка 1"
+    assert tpl_copy.player_name == ""
+    assert tpl_copy.tabs[0].fields[0].folder_path == ""
+    assert tpl_copy.tabs[0].fields[0].cloud_link == ""
+    assert tpl_copy.tabs[0].fields[0].manual_count == 0
+
+    # Test create_export_copy full data, all tabs
+    full_copy = config.create_export_copy(as_template=False, active_tab_only=False)
+    assert len(full_copy.tabs) == 2
+    assert full_copy.player_name == "Jason Mitsui"
+    assert full_copy.tabs[0].fields[0].folder_path == "/fake/path"
+    assert full_copy.tabs[0].fields[0].cloud_link == "https://cloud"
+
+    dlg.close()
+    dlg.deleteLater()
+    qapp.processEvents()
+
+
+def test_import_options_dialog_and_append_mode(qapp):
+    """Verify ImportOptionsDialog and append mode without deleting existing tabs."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        config_path = Path(tmp_dir) / "test_import_config.json"
+        window = MainWindow(config_path=str(config_path))
+        window.show()
+
+        # Add initial tab
+        initial_tab = DepartmentTab(id="t-init", title="Моя старая вкладка", fields=[])
+        window.config.tabs = [initial_tab]
+        window.rebuild_tabs()
+        assert window.tab_widget.count() == 1
+
+        # Prepare imported config with same ID to test ID regeneration
+        imported = ReporterConfig(player_name="New Player", player_static="999", tabs=[
+            DepartmentTab(id="t-init", title="Новая импортированная вкладка", fields=[])
+        ])
+
+        dlg = ImportOptionsDialog("test.json", imported, current_tabs_count=1)
+        dlg.show()
+        assert dlg.radio_append.isChecked() is True
+
+        # Simulate append selection
+        dlg.radio_append.setChecked(True)
+        dlg.perform_import()
+        assert dlg.selected_mode == "append"
+
+        # Apply append in window
+        for tab in imported.tabs:
+            if tab.id in {t.id for t in window.config.tabs}:
+                cloned = tab.clone_with_new_ids()
+            else:
+                cloned = tab
+            window.config.tabs.append(cloned)
+
+        window.rebuild_tabs()
+
+        # Verify old tab was NOT deleted and new tab was appended
+        assert window.tab_widget.count() == 2
+        assert window.config.tabs[0].title == "Моя старая вкладка"
+        assert window.config.tabs[1].title == "Новая импортированная вкладка"
+        # IDs must be different
+        assert window.config.tabs[0].id != window.config.tabs[1].id
+
+        dlg.close()
+        dlg.deleteLater()
+        window.close()
+        qapp.processEvents()

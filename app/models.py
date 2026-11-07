@@ -79,6 +79,16 @@ class ReportField(BaseModel):
                     res.append(DiscordLinkItem(url=s.strip(), count=1))
         return res
 
+    def to_template(self) -> ReportField:
+        """Return a clean copy of the field without paths, counts, links, or cloud urls."""
+        data = self.model_dump()
+        data["folder_path"] = ""
+        data["manual_count"] = 0
+        data["simple_links"] = []
+        data["links"] = []
+        data["cloud_link"] = ""
+        return ReportField.model_validate(data)
+
     def count_files(self) -> int:
         """Count matching files in folder if folder_path exists."""
         if self.field_type != FieldType.FOLDER:
@@ -194,6 +204,32 @@ class DepartmentTab(BaseModel):
         """Sum of all points in this tab."""
         return round(sum(f.calculate_points() for f in self.fields), 2)
 
+    def to_template(self) -> DepartmentTab:
+        """Return a clean copy of the tab with clean template fields."""
+        return DepartmentTab(
+            id=self.id,
+            title=self.title,
+            code=self.code,
+            description=self.description,
+            fields=[f.to_template() for f in self.fields]
+        )
+
+    def clone_with_new_ids(self) -> DepartmentTab:
+        """Return a deep copy of tab and its fields with newly generated unique IDs (for appending)."""
+        import uuid
+        new_fields = []
+        for f in self.fields:
+            f_data = f.model_dump()
+            f_data["id"] = str(uuid.uuid4())
+            new_fields.append(ReportField.model_validate(f_data))
+        return DepartmentTab(
+            id=str(uuid.uuid4()),
+            title=self.title,
+            code=self.code,
+            description=self.description,
+            fields=new_fields
+        )
+
 
 class ReporterConfig(BaseModel):
     """Complete application configuration containing tabs and metadata."""
@@ -211,3 +247,38 @@ class ReporterConfig(BaseModel):
     def grand_total_points(self) -> float:
         """Sum of points across all tabs."""
         return round(sum(t.total_points() for t in self.tabs), 2)
+
+    def create_export_copy(
+        self,
+        as_template: bool = False,
+        active_tab_only: bool = False,
+        active_tab_id: Optional[str] = None
+    ) -> ReporterConfig:
+        """Generate configuration for export with chosen options."""
+        if active_tab_only and active_tab_id:
+            selected_tabs = [t for t in self.tabs if t.id == active_tab_id]
+            if not selected_tabs and self.tabs:
+                selected_tabs = [self.tabs[0]]
+        else:
+            selected_tabs = list(self.tabs)
+
+        if as_template:
+            exported_tabs = [t.to_template() for t in selected_tabs]
+            return ReporterConfig(
+                app_title=self.app_title,
+                player_name="",
+                player_static="",
+                auto_refresh_seconds=self.auto_refresh_seconds,
+                active_tab_id=exported_tabs[0].id if exported_tabs else None,
+                tabs=exported_tabs
+            )
+        else:
+            copied_tabs = [t.model_copy(deep=True) for t in selected_tabs]
+            return ReporterConfig(
+                app_title=self.app_title,
+                player_name=self.player_name,
+                player_static=self.player_static,
+                auto_refresh_seconds=self.auto_refresh_seconds,
+                active_tab_id=self.active_tab_id,
+                tabs=copied_tabs
+            )

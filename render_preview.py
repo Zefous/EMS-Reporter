@@ -13,6 +13,7 @@ from app.report_dialog import ReportPreviewDialog
 from app.dialogs import EditLinksDialog, EditSimpleLinksDialog
 from app.about_dialog import AboutDialog
 from app.help_dialog import HelpDialog
+from app.export_import_dialogs import ExportDialog
 from app.theme import MEDICAL_QSS
 from app.models import ReportField, FieldType, DepartmentTab, DiscordLinkItem
 
@@ -21,6 +22,9 @@ def create_demo_screenshot():
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     app = QApplication.instance() or QApplication([])
     app.setStyleSheet(MEDICAL_QSS)
+
+    docs_dir = Path("/home/burmalda/Кирилл/EMS reporter/docs")
+    docs_dir.mkdir(parents=True, exist_ok=True)
 
     demo_dir = Path("/home/burmalda/Кирилл/EMS reporter/temp_demo")
     if demo_dir.exists():
@@ -46,8 +50,8 @@ def create_demo_screenshot():
     win.resize(1160, 720)
     win.show()
     app.processEvents()
-    empty_path = "/home/burmalda/Кирилл/EMS reporter/empty_preview.png"
-    win.grab().save(empty_path)
+    empty_path = docs_dir / "empty_preview.png"
+    win.grab().save(str(empty_path))
     print(f"Empty preview saved to {empty_path}")
 
     # Now create a demo tab with all 4 field types
@@ -124,16 +128,25 @@ def create_demo_screenshot():
     win.force_refresh_all()
     app.processEvents()
 
-    screenshot_path = "/home/burmalda/Кирилл/EMS reporter/preview.png"
-    win.grab().save(screenshot_path)
+    screenshot_path = docs_dir / "preview.png"
+    win.grab().save(str(screenshot_path))
     print(f"Preview saved to {screenshot_path}")
+
+    # Export Dialog preview
+    export_dlg = ExportDialog(win.config, active_tab=pm_tab)
+    export_dlg.show()
+    app.processEvents()
+    export_path = docs_dir / "export_preview.png"
+    export_dlg.grab().save(str(export_path))
+    print(f"Export preview saved to {export_path}")
+    export_dlg.close()
 
     # About Dialog preview
     about_dlg = AboutDialog()
     about_dlg.show()
     app.processEvents()
-    about_path = "/home/burmalda/Кирилл/EMS reporter/about_preview.png"
-    about_dlg.grab().save(about_path)
+    about_path = docs_dir / "about_preview.png"
+    about_dlg.grab().save(str(about_path))
     print(f"About preview saved to {about_path}")
     about_dlg.close()
 
@@ -142,8 +155,8 @@ def create_demo_screenshot():
     help_dlg.resize(960, 640)
     help_dlg.show()
     app.processEvents()
-    help_path = "/home/burmalda/Кирилл/EMS reporter/help_preview.png"
-    help_dlg.grab().save(help_path)
+    help_path = docs_dir / "help_preview.png"
+    help_dlg.grab().save(str(help_path))
     print(f"Help preview saved to {help_path}")
     help_dlg.close()
 
@@ -156,8 +169,8 @@ def create_demo_screenshot():
     links_dlg.resize(740, 500)
     links_dlg.show()
     app.processEvents()
-    links_path = "/home/burmalda/Кирилл/EMS reporter/links_dialog_preview.png"
-    links_dlg.grab().save(links_path)
+    links_path = docs_dir / "links_dialog_preview.png"
+    links_dlg.grab().save(str(links_path))
     print(f"Links dialog preview saved to {links_path}")
     links_dlg.close()
 
@@ -166,10 +179,13 @@ def create_demo_screenshot():
     report_dlg.resize(780, 680)
     report_dlg.show()
     app.processEvents()
-    report_path = "/home/burmalda/Кирилл/EMS reporter/report_preview.png"
-    report_dlg.grab().save(report_path)
+    report_path = docs_dir / "report_preview.png"
+    report_dlg.grab().save(str(report_path))
     print(f"Report preview saved to {report_path}")
     report_dlg.close()
+
+    shutil.rmtree(demo_dir, ignore_errors=True)
+    win.close()
 
     shutil.rmtree(demo_dir, ignore_errors=True)
     win.close()
