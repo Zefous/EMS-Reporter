@@ -15,6 +15,9 @@ from PySide6.QtWidgets import (
 )
 
 
+from app import __version__
+
+
 class AboutDialog(QDialog):
     """Dialog displaying application information, purpose, and GitHub link."""
 
@@ -65,7 +68,7 @@ class AboutDialog(QDialog):
         app_title.setStyleSheet("font-size: 18px; font-weight: bold; color: #38bdf8;")
         app_sub = QLabel("Majestic GTA V RP • Emergency Medical Services")
         app_sub.setStyleSheet("font-size: 11px; color: #94a3b8;")
-        version_lbl = QLabel("Версия 1.2.0 • 2026")
+        version_lbl = QLabel(f"Версия {__version__} • 2026")
         version_lbl.setStyleSheet("font-size: 11px; color: #10b981; font-weight: 600;")
 
         title_box.addWidget(app_title)
