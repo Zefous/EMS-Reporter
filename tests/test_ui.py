@@ -17,6 +17,8 @@ from app.dialogs import EditLinksDialog, EditSimpleLinksDialog, EditFieldDialog,
 from app.about_dialog import AboutDialog
 from app.help_dialog import HelpDialog
 from app.export_import_dialogs import ExportDialog, ImportOptionsDialog
+from app.updater import ReleaseInfo
+from app.update_dialog import UpdateDialog
 
 
 @pytest.fixture(scope="session")
@@ -352,7 +354,7 @@ def test_about_dialog(qapp):
     assert "https://github.com/Zefous/EMS-Reporter" in texts
     assert "https://github.com/Zefous/EMS-Reporter/releases" in texts
     assert "Majestic GTA V RP" in texts
-    assert "Версия 1.0.0" in texts
+    assert "Версия 1.1.0" in texts
 
     dlg.close()
     dlg.deleteLater()
@@ -477,3 +479,29 @@ def test_import_options_dialog_and_append_mode(qapp):
         dlg.deleteLater()
         window.close()
         qapp.processEvents()
+
+
+def test_update_dialog_ui(qapp):
+    """Verify UpdateDialog renders release notes, version change and buttons."""
+    release = ReleaseInfo(
+        tag_name="v1.2.0",
+        version="1.2.0",
+        name="Версия 1.2.0",
+        body="• Новая классная функция\n• Исправление ошибок",
+        html_url="https://github.com/Zefous/EMS-Reporter/releases/tag/v1.2.0",
+        download_url="https://github.com/Zefous/EMS-Reporter/releases/download/v1.2.0/EMS_Reporter.exe",
+        asset_name="EMS_Reporter.exe",
+        asset_size=62000000,
+    )
+    dlg = UpdateDialog(release)
+    dlg.show()
+
+    assert "Обновление" in dlg.windowTitle()
+    assert "v1.2.0" in dlg.release.tag_name
+    assert "Новая классная функция" in dlg.browser.toHtml()
+    assert dlg.progress_container.isVisible() is False
+    assert dlg.action_btn.text() == "⬇ Загрузить и обновить"
+
+    dlg.close()
+    dlg.deleteLater()
+    qapp.processEvents()

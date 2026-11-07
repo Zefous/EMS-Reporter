@@ -14,6 +14,8 @@ from app.dialogs import EditLinksDialog, EditSimpleLinksDialog
 from app.about_dialog import AboutDialog
 from app.help_dialog import HelpDialog
 from app.export_import_dialogs import ExportDialog
+from app.updater import ReleaseInfo
+from app.update_dialog import UpdateDialog
 from app.theme import MEDICAL_QSS
 from app.models import ReportField, FieldType, DepartmentTab, DiscordLinkItem
 
@@ -149,6 +151,25 @@ def create_demo_screenshot():
     about_dlg.grab().save(str(about_path))
     print(f"About preview saved to {about_path}")
     about_dlg.close()
+
+    # Update Dialog preview
+    mock_rel = ReleaseInfo(
+        tag_name="v1.2.0",
+        version="1.2.0",
+        name="EMS Reporter v1.2.0",
+        body="• Добавлена система бесшовного обновления в один клик\n• Повышена стабильность работы на Windows\n• Обновлён интерфейс и автотесты",
+        html_url="https://github.com/Zefous/EMS-Reporter/releases",
+        download_url="https://github.com/Zefous/EMS-Reporter/releases/download/v1.2.0/EMS_Reporter.exe",
+        asset_name="EMS_Reporter.exe",
+        asset_size=64500000,
+    )
+    upd_dlg = UpdateDialog(mock_rel)
+    upd_dlg.show()
+    app.processEvents()
+    upd_path = docs_dir / "update_preview.png"
+    upd_dlg.grab().save(str(upd_path))
+    print(f"Update preview saved to {upd_path}")
+    upd_dlg.close()
 
     # Help Dialog preview
     help_dlg = HelpDialog()

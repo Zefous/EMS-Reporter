@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMenu,
 )
 
+from app import __version__
 from app.models import ReporterConfig, DepartmentTab, ReportField, FieldType
 from app.storage import ConfigManager, ReportGenerator
 from app.templates import create_default_config
@@ -35,6 +36,8 @@ from app.report_dialog import ReportPreviewDialog
 from app.about_dialog import AboutDialog
 from app.help_dialog import HelpDialog
 from app.export_import_dialogs import ExportDialog, ImportOptionsDialog
+from app.updater import CheckUpdateThread, is_newer_version
+from app.update_dialog import UpdateDialog
 
 
 class MainWindow(QMainWindow):
@@ -58,6 +61,10 @@ class MainWindow(QMainWindow):
         self.refresh_timer.timeout.connect(self.auto_refresh_folders)
         if self.config.auto_refresh_seconds > 0:
             self.refresh_timer.start(self.config.auto_refresh_seconds * 1000)
+
+        # Silent update check on launch
+        self.update_checker_thread: Optional[CheckUpdateThread] = None
+        QTimer.singleShot(2500, lambda: self.check_for_updates(manual=False))
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -224,6 +231,11 @@ class MainWindow(QMainWindow):
                 color: #ffffff;
             }
         """)
+
+        update_act = self.info_menu.addAction("🔄 Проверить обновления")
+        update_act.triggered.connect(lambda: self.check_for_updates(manual=True))
+
+        self.info_menu.addSeparator()
 
         about_act = self.info_menu.addAction("ℹ О программе")
         about_act.triggered.connect(self.open_about_dialog)
@@ -437,6 +449,34 @@ class MainWindow(QMainWindow):
     def open_help_dialog(self):
         dlg = HelpDialog(self)
         dlg.exec()
+
+    def check_for_updates(self, manual: bool = False):
+        """Check for updates in a background thread."""
+        if self.update_checker_thread and self.update_checker_thread.isRunning():
+            if manual:
+                self.status_bar.showMessage("Уже выполняется проверка обновлений...", 3000)
+            return
+
+        if manual:
+            self.status_bar.showMessage("Проверка наличия обновлений на GitHub...", 3000)
+
+        self.update_checker_thread = CheckUpdateThread(current_version=__version__, parent=self)
+        self.update_checker_thread.finished_check.connect(lambda info: self.on_update_checked(info, manual))
+        self.update_checker_thread.start()
+
+    def on_update_checked(self, info, manual: bool):
+        if info is not None and is_newer_version(__version__, info.version):
+            self.status_bar.showMessage(f"Доступна новая версия: {info.tag_name}!", 5000)
+            dlg = UpdateDialog(info, parent=self)
+            dlg.exec()
+        elif manual:
+            self.status_bar.showMessage("Установлена актуальная версия программы", 3000)
+            QMessageBox.information(
+                self,
+                "Обновление программы",
+                f"У вас установлена последняя версия EMS Reporter (v{__version__}).\n"
+                "Новых обновлений на GitHub не найдено."
+            )
 
     def export_config(self):
         if not self.config.tabs:

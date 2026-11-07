@@ -8,6 +8,7 @@ from pathlib import Path
 from app.models import ReportField, FieldType, DepartmentTab, ReporterConfig, DiscordLinkItem
 from app.storage import ConfigManager, ReportGenerator
 from app.templates import create_default_config
+from app.updater import parse_version, is_newer_version, ReleaseInfo
 
 
 def test_numeric_field_calculation():
@@ -242,3 +243,34 @@ def test_plain_report_generation():
 
     for expected in expected_lines:
         assert expected in report
+
+
+def test_updater_version_parsing():
+    """Verify semantic version parsing and comparison."""
+    assert parse_version("1.1.0") == (1, 1, 0)
+    assert parse_version("v1.2.3") == (1, 2, 3)
+    assert parse_version("v2.0.0-rc1") == (2, 0, 0, 1)
+
+    assert is_newer_version("1.1.0", "1.1.1") is True
+    assert is_newer_version("1.1.0", "1.2.0") is True
+    assert is_newer_version("1.1.0", "2.0.0") is True
+    assert is_newer_version("1.1.0", "1.1.0") is False
+    assert is_newer_version("1.2.0", "1.1.9") is False
+    assert is_newer_version("v1.1.0", "v1.2.0") is True
+
+
+def test_release_info_model():
+    """Verify ReleaseInfo creation and properties."""
+    info = ReleaseInfo(
+        tag_name="v1.2.0",
+        version="1.2.0",
+        name="Update 1.2.0",
+        body="Major improvements",
+        html_url="https://github.com/Zefous/EMS-Reporter/releases/tag/v1.2.0",
+        download_url="https://github.com/Zefous/EMS-Reporter/releases/download/v1.2.0/EMS_Reporter.exe",
+        asset_name="EMS_Reporter.exe",
+        asset_size=65000000,
+    )
+    assert info.tag_name == "v1.2.0"
+    assert info.version == "1.2.0"
+    assert "EMS_Reporter.exe" in info.download_url
