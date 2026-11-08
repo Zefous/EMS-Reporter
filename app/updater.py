@@ -198,19 +198,30 @@ def apply_update_and_restart(update_file: str | Path) -> bool:
 
     base_dir = target_exe.parent
 
-    # Environment without PyInstaller temporary directory pointers
-    clean_env = os.environ.copy()
-    clean_env.pop("_MEIPASS", None)
-    clean_env.pop("_MEIPASS2", None)
+    # Environment without PyInstaller temporary directory and child IPC pointers
+    clean_env = {
+        k: v for k, v in os.environ.items()
+        if not k.startswith("_PYI_") and not k.startswith("_MEI")
+    }
+    if "PATH" in clean_env:
+        paths = clean_env["PATH"].split(os.pathsep)
+        clean_env["PATH"] = os.pathsep.join(p for p in paths if "_MEI" not in p)
 
     if sys.platform == "win32":
-        # Create a helper batch script to replace file and restart cleanly
+        # Create a helper batch script to replace file and restart cleanly.
+        # CRITICAL for PyInstaller 6+:
+        # Unset _PYI_ARCHIVE_FILE and all _PYI_* / _MEI* variables so that the new instance
+        # boots as a clean, independent parent process and does not try to inherit
+        # the deleted temporary directory of the exiting process!
         bat_path = base_dir / "_apply_update.bat"
-        # Crucial: Unset _MEIPASS and _MEIPASS2 so the new instance does not look
-        # into the old instance's deleted temporary directory!
         bat_content = (
             "@echo off\r\n"
             "setlocal\r\n"
+            "set \"_PYI_ARCHIVE_FILE=\"\r\n"
+            "set \"_PYI_APPLICATION_HOME_DIR=\"\r\n"
+            "set \"_PYI_PARENT_PROCESS_LEVEL=\"\r\n"
+            "set \"_PYI_SPLASH_IPC=\"\r\n"
+            "set \"_PYI_LINUX_PROCESS_NAME=\"\r\n"
             "set \"_MEIPASS=\"\r\n"
             "set \"_MEIPASS2=\"\r\n"
             f'cd /d "{str(base_dir)}"\r\n'
@@ -237,7 +248,8 @@ def apply_update_and_restart(update_file: str | Path) -> bool:
             )
         else:
             cmd_script = (
-                f'set "_MEIPASS=" & set "_MEIPASS2=" & '
+                f'set "_PYI_ARCHIVE_FILE=" & set "_PYI_APPLICATION_HOME_DIR=" & '
+                f'set "_PYI_PARENT_PROCESS_LEVEL=" & set "_MEIPASS=" & set "_MEIPASS2=" & '
                 f':loop & timeout /t 1 /nobreak >nul & '
                 f'move /y "{str(update_path)}" "{str(target_exe)}" >nul 2>nul & '
                 f'if errorlevel 1 (goto loop) else (start "" "{str(target_exe)}")'
