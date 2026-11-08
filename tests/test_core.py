@@ -249,12 +249,12 @@ def test_updater_version_parsing():
     """Verify semantic version parsing and comparison."""
     assert parse_version("1.1.0") == (1, 1, 0)
     assert parse_version("v1.2.3") == (1, 2, 3)
-    assert parse_version("v2.0.0-rc1") == (2, 0, 0, 1)
+    assert parse_version("1.1.1a") == (1, 1, 1, 1)
 
     assert is_newer_version("1.1.0", "1.1.1") is True
-    assert is_newer_version("1.1.0", "1.2.0") is True
-    assert is_newer_version("1.1.0", "2.0.0") is True
-    assert is_newer_version("1.1.0", "1.1.0") is False
+    assert is_newer_version("1.1.1", "1.1.1a") is True
+    assert is_newer_version("1.1.1a", "1.1.2") is True
+    assert is_newer_version("1.1.1a", "1.1.1a") is False
     assert is_newer_version("1.2.0", "1.1.9") is False
     assert is_newer_version("v1.1.0", "v1.2.0") is True
 

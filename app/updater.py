@@ -22,14 +22,22 @@ DEFAULT_REPO = "Zefous/EMS-Reporter"
 
 
 def parse_version(v_str: str) -> Tuple[int, ...]:
-    """Parse version string like 'v1.1.0' or '1.2.3-beta' into integer tuple."""
+    """Parse version string like 'v1.1.0', '1.1.1a' or '1.2.3' into integer tuple."""
     if not v_str:
         return (0, 0, 0)
     cleaned = v_str.strip().lstrip("vV")
-    numbers = re.findall(r"\d+", cleaned)
-    if not numbers:
-        return (0, 0, 0)
-    return tuple(int(n) for n in numbers)
+    tokens = re.findall(r"\d+|[a-zA-Z]+", cleaned)
+    parts = []
+    for token in tokens:
+        if token.isdigit():
+            parts.append(int(token))
+        else:
+            letter = token.lower()
+            if len(letter) == 1 and "a" <= letter <= "z":
+                parts.append(ord(letter) - ord("a") + 1)
+            else:
+                parts.append(0)
+    return tuple(parts) if parts else (0, 0, 0)
 
 
 def is_newer_version(current: str, remote: str) -> bool:

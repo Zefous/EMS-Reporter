@@ -354,7 +354,7 @@ def test_about_dialog(qapp):
     assert "https://github.com/Zefous/EMS-Reporter" in texts
     assert "https://github.com/Zefous/EMS-Reporter/releases" in texts
     assert "Majestic GTA V RP" in texts
-    assert "Версия 1.1.1" in texts
+    assert "Версия 1.1.1a" in texts
 
     dlg.close()
     dlg.deleteLater()
