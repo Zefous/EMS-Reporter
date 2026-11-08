@@ -204,12 +204,14 @@ class UpdateDialog(QDialog):
 
         success = apply_update_and_restart(self.downloaded_file)
         if success:
+            self.accept()
             QApplication.quit()
+            sys.exit(0)
         else:
             QMessageBox.information(
                 self,
                 "Обновление загружено",
                 f"Файл обновления успешно скачан:\n{self.downloaded_file}\n\n"
-                "Поскольку программа запущена из исходного кода Python, перезапуск в .exe не требуется."
+                "Поскольку программа запущена из исходного кода Python, автоматический перезапуск в .exe не требуется."
             )
             self.accept()

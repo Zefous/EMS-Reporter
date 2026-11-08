@@ -188,29 +188,65 @@ def apply_update_and_restart(update_file: str | Path) -> bool:
         # Development mode (running from python source)
         return False
 
+    base_dir = target_exe.parent
+
+    # Environment without PyInstaller temporary directory pointers
+    clean_env = os.environ.copy()
+    clean_env.pop("_MEIPASS", None)
+    clean_env.pop("_MEIPASS2", None)
+
     if sys.platform == "win32":
-        # Windows in-place replacement script:
-        # 1. Wait 1 sec for current process to exit and unlock file handle
-        # 2. move /y overwrite target_exe with update_path (keeping exact same name EMS_Reporter.exe)
-        # 3. start newly replaced executable
-        cmd_script = (
-            f'timeout /t 1 /nobreak >nul & '
-            f'move /y "{str(update_path)}" "{str(target_exe)}" & '
-            f'start "" "{str(target_exe)}"'
+        # Create a helper batch script to replace file and restart cleanly
+        bat_path = base_dir / "_apply_update.bat"
+        # Crucial: Unset _MEIPASS and _MEIPASS2 so the new instance does not look
+        # into the old instance's deleted temporary directory!
+        bat_content = (
+            "@echo off\r\n"
+            "setlocal\r\n"
+            "set \"_MEIPASS=\"\r\n"
+            "set \"_MEIPASS2=\"\r\n"
+            f'cd /d "{str(base_dir)}"\r\n'
+            ":wait_loop\r\n"
+            "timeout /t 1 /nobreak >nul\r\n"
+            f'move /y "{update_path.name}" "{target_exe.name}" >nul 2>nul\r\n'
+            "if errorlevel 1 goto wait_loop\r\n"
+            f'start "" "{target_exe.name}"\r\n'
+            'del "%~f0" & exit\r\n'
         )
-        # CREATE_NO_WINDOW = 0x08000000 avoids flashing a black command prompt window
-        subprocess.Popen(
-            f'cmd.exe /c "{cmd_script}"',
-            shell=True,
-            creationflags=0x08000000,
-        )
+
+        try:
+            with open(bat_path, "w", encoding="ascii") as f:
+                f.write(bat_content)
+        except Exception:
+            pass
+
+        if bat_path.exists():
+            subprocess.Popen(
+                ["cmd.exe", "/c", str(bat_path)],
+                cwd=str(base_dir),
+                env=clean_env,
+                creationflags=0x08000000,  # CREATE_NO_WINDOW
+            )
+        else:
+            cmd_script = (
+                f'set "_MEIPASS=" & set "_MEIPASS2=" & '
+                f':loop & timeout /t 1 /nobreak >nul & '
+                f'move /y "{str(update_path)}" "{str(target_exe)}" >nul 2>nul & '
+                f'if errorlevel 1 (goto loop) else (start "" "{str(target_exe)}")'
+            )
+            subprocess.Popen(
+                f'cmd.exe /c "{cmd_script}"',
+                shell=True,
+                env=clean_env,
+                creationflags=0x08000000,
+            )
         return True
     else:
         # Linux / Unix replacement
         try:
             os.chmod(update_path, 0o755)
             shutil.move(update_path, target_exe)
-            subprocess.Popen([str(target_exe)])
+            subprocess.Popen([str(target_exe)], env=clean_env)
             return True
         except Exception:
             return False
