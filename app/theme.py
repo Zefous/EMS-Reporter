@@ -445,4 +445,28 @@ QStatusBar {
     font-size: 11px;
     padding: 2px 6px;
 }
+
+/* Radio Buttons */
+QRadioButton {
+    spacing: 8px;
+    color: #e2e8f0;
+    font-size: 12px;
+}
+
+QRadioButton::indicator {
+    width: 15px;
+    height: 15px;
+    border-radius: 8px;
+    border: 2px solid #38bdf8;
+    background-color: #07101b;
+}
+
+QRadioButton::indicator:hover {
+    border-color: #7dd3fc;
+}
+
+QRadioButton::indicator:checked {
+    background-color: #0284c7;
+    border: 2px solid #38bdf8;
+}
 """

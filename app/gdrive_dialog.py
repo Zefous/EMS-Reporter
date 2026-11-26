@@ -228,9 +228,10 @@ class GoogleDriveUploadDialog(QDialog):
 
         # 1. Account Card
         acc_frame = QFrame()
-        acc_frame.setStyleSheet("background-color: #0f2234; border: 1px solid #1a3650; border-radius: 6px; padding: 8px 12px;")
+        acc_frame.setObjectName("accFrame")
+        acc_frame.setStyleSheet("#accFrame { background-color: #0f2234; border: 1px solid #1a3650; border-radius: 6px; }")
         acc_layout = QHBoxLayout(acc_frame)
-        acc_layout.setContentsMargins(0, 0, 0, 0)
+        acc_layout.setContentsMargins(12, 8, 12, 8)
         acc_layout.setSpacing(8)
 
         self.auth_status_lbl = QLabel("Проверка авторизации...")
@@ -252,9 +253,10 @@ class GoogleDriveUploadDialog(QDialog):
 
         # 2. Target Folder Selection
         folder_frame = QFrame()
-        folder_frame.setStyleSheet("background-color: #0d1a29; border: 1px solid #162a3f; border-radius: 6px; padding: 10px 12px;")
+        folder_frame.setObjectName("folderFrame")
+        folder_frame.setStyleSheet("#folderFrame { background-color: #0d1a29; border: 1px solid #162a3f; border-radius: 6px; }")
         f_layout = QVBoxLayout(folder_frame)
-        f_layout.setContentsMargins(0, 0, 0, 0)
+        f_layout.setContentsMargins(12, 10, 12, 10)
         f_layout.setSpacing(8)
 
         f_title = QLabel("Целевая папка отчёта на Google Диске:")
