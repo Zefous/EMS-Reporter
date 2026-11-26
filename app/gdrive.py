@@ -415,3 +415,68 @@ class GoogleDriveClient:
     def delete_file(self, file_id: str) -> None:
         """Delete a file from Google Drive."""
         self.service.files().delete(fileId=file_id).execute()
+
+    def get_storage_quota(self) -> Optional[Dict[str, int]]:
+        """Return {'limit': int, 'usage': int, 'free': int} in bytes, or None if unlimited/unavailable."""
+        try:
+            about = self.service.about().get(fields="storageQuota").execute()
+            sq = about.get("storageQuota", {})
+            limit_raw = sq.get("limit")
+            if limit_raw is None:
+                return None
+            limit = int(limit_raw)
+            usage = int(sq.get("usage", 0))
+            return {
+                "limit": limit,
+                "usage": usage,
+                "free": max(0, limit - usage),
+            }
+        except Exception:
+            return None
+
+    def check_quota_for_files(self, files_to_upload: List[Path]) -> Optional[str]:
+        """Check if Google Drive has enough free space for files_to_upload.
+
+        Returns a user-friendly Russian error message if quota is insufficient, or None if OK.
+        """
+        needed_bytes = 0
+        for p in files_to_upload:
+            try:
+                if p.exists():
+                    needed_bytes += p.stat().st_size
+            except OSError:
+                pass
+
+        if needed_bytes <= 0:
+            return None
+
+        quota = self.get_storage_quota()
+        if quota is None:
+            return None
+
+        if needed_bytes > quota["free"]:
+            needed_mb = needed_bytes / (1024 * 1024)
+            free_mb = quota["free"] / (1024 * 1024)
+            return (
+                "На вашем Google Диске недостаточно свободного места.\n"
+                f"Требуется для новых файлов: {needed_mb:.1f} МБ, доступно: {free_mb:.1f} МБ.\n"
+                "Освободите место на Диске и повторите выгрузку — уже загруженные файлы будут пропущены."
+            )
+        return None
+
+
+def format_gdrive_error(exc: Exception) -> str:
+    """Convert Google Drive API / OAuth exceptions into clear Russian messages."""
+    msg = str(exc)
+    lower = msg.lower()
+
+    if "storagequotaexceeded" in lower or "quota exceeded" in lower:
+        return (
+            "На вашем Google Диске закончилось свободное место.\n"
+            "Освободите место и повторите выгрузку — уже загруженные файлы будут пропущены."
+        )
+    if "ratelimitexceeded" in lower or "userratelimitexceeded" in lower or "429" in lower:
+        return "Превышен лимит запросов к Google Диску. Подождите немного и повторите попытку."
+    if "invalid_grant" in lower or "insufficientpermissions" in lower or "401" in lower:
+        return "Сессия Google устарела или недостаточно прав. Нажмите «Выйти» и войдите в Google заново."
+    return msg

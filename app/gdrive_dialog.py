@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import DepartmentTab, FieldType, ReportField, ReporterConfig
-from app.gdrive import GoogleDriveClient, SyncPlan, find_client_secrets, plan_sync
+from app.gdrive import GoogleDriveClient, SyncPlan, find_client_secrets, plan_sync, format_gdrive_error
 
 
 @dataclass
@@ -52,7 +52,7 @@ class GDriveAuthThread(QThread):
             user_info = self.client.authenticate(self.secrets_path)
             self.finished_auth.emit(user_info, "")
         except Exception as e:
-            self.finished_auth.emit(None, str(e))
+            self.finished_auth.emit(None, format_gdrive_error(e))
 
 
 class GDriveListFoldersThread(QThread):
@@ -68,7 +68,7 @@ class GDriveListFoldersThread(QThread):
             folders = self.client.list_report_folders()
             self.finished_list.emit(folders, "")
         except Exception as e:
-            self.finished_list.emit([], str(e))
+            self.finished_list.emit([], format_gdrive_error(e))
 
 
 class GDrivePrepareThread(QThread):
@@ -95,6 +95,13 @@ class GDrivePrepareThread(QThread):
     def run(self):
         try:
             if self.create_new:
+                self.progress.emit("Проверка свободного места на Google Диске...")
+                all_local = [p for f in self.fields for p in f.get_local_image_files()]
+                quota_err = self.client.check_quota_for_files(all_local)
+                if quota_err:
+                    self.finished_prepare.emit(None, [], quota_err)
+                    return
+
                 self.progress.emit(f"Создание папки «{self.new_folder_name}»...")
                 report_folder = self.client.create_unique_report_folder(self.new_folder_name)
             else:
@@ -114,9 +121,17 @@ class GDrivePrepareThread(QThread):
                 sync_plan = plan_sync(local_files, remote_files)
                 tasks.append(FieldSyncTask(field=f, local_files=local_files, subfolder=subfolder, plan=sync_plan))
 
+            if not self.create_new:
+                self.progress.emit("Проверка свободного места на Google Диске...")
+                new_files = [p for t in tasks for p in t.plan.to_upload]
+                quota_err = self.client.check_quota_for_files(new_files)
+                if quota_err:
+                    self.finished_prepare.emit(None, [], quota_err)
+                    return
+
             self.finished_prepare.emit(report_folder, tasks, "")
         except Exception as e:
-            self.finished_prepare.emit(None, [], str(e))
+            self.finished_prepare.emit(None, [], format_gdrive_error(e))
 
 
 class GDriveExecuteThread(QThread):
@@ -176,7 +191,7 @@ class GDriveExecuteThread(QThread):
                 "",
             )
         except Exception as e:
-            self.finished_execute.emit({}, str(e))
+            self.finished_execute.emit({}, format_gdrive_error(e))
 
 
 class GoogleDriveUploadDialog(QDialog):

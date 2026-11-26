@@ -370,3 +370,40 @@ def test_release_info_model():
     assert info.tag_name == "v1.2.0"
     assert info.version == "1.2.0"
     assert "EMS_Reporter.exe" in info.download_url
+
+
+def test_gdrive_quota_check_and_error_formatting():
+    """Verify pre-upload quota check and friendly Russian error messages."""
+    from unittest.mock import MagicMock
+    from app.gdrive import GoogleDriveClient, format_gdrive_error
+
+    mock_service = MagicMock()
+    # 1000 bytes limit, 990 bytes used -> 10 bytes free
+    mock_service.about.return_value.get.return_value.execute.return_value = {
+        "storageQuota": {"limit": "1000", "usage": "990"}
+    }
+    client = GoogleDriveClient(service=mock_service)
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        big_file = Path(tmp_dir) / "big.png"
+        big_file.write_bytes(b"x" * 50)  # 50 bytes > 10 bytes free
+
+        err = client.check_quota_for_files([big_file])
+        assert err is not None
+        assert "недостаточно свободного места" in err.lower()
+
+        # When enough space is available
+        mock_service.about.return_value.get.return_value.execute.return_value = {
+            "storageQuota": {"limit": "10000", "usage": "100"}
+        }
+        assert client.check_quota_for_files([big_file]) is None
+
+    # Friendly error formatting
+    quota_msg = format_gdrive_error(RuntimeError("HttpError 403: storageQuotaExceeded"))
+    assert "закончилось свободное место" in quota_msg.lower()
+
+    rate_msg = format_gdrive_error(RuntimeError("HttpError 429: rateLimitExceeded"))
+    assert "лимит запросов" in rate_msg.lower()
+
+    auth_msg = format_gdrive_error(RuntimeError("invalid_grant: Token has been expired"))
+    assert "сессия google устарела" in auth_msg.lower()
