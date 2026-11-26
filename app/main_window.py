@@ -39,6 +39,7 @@ from app.export_import_dialogs import ExportDialog, ImportOptionsDialog
 from app.gdrive_dialog import GoogleDriveUploadDialog
 from app.updater import CheckUpdateThread, is_newer_version
 from app.update_dialog import UpdateDialog
+from app.flow_layout import FlowLayout
 
 
 class MainWindow(QMainWindow):
@@ -121,9 +122,11 @@ class MainWindow(QMainWindow):
 
         title_lbl = QLabel("🚑 EMERGENCY MEDICAL SERVICES • MAJESTIC RP")
         title_lbl.setObjectName("headerTitle")
+        title_lbl.setWordWrap(True)
 
         subtitle_lbl = QLabel("Автоматический учёт баллов отчётов по скриншотам и ручным нормативам")
         subtitle_lbl.setObjectName("headerSubtitle")
+        subtitle_lbl.setWordWrap(True)
 
         title_box.addWidget(title_lbl)
         title_box.addWidget(subtitle_lbl)
@@ -171,12 +174,12 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(header)
 
-        # 2. Main Action Toolbar (Add Tab, Import, Export, Report, Refresh)
+        # 2. Main Action Toolbar (Responsive FlowLayout + grouped Settings menu)
         toolbar = QFrame()
-        toolbar.setStyleSheet("background-color: #0b1725; border-bottom: 1px solid #162a3f; padding: 6px 16px;")
-        tool_layout = QHBoxLayout(toolbar)
-        tool_layout.setContentsMargins(0, 0, 0, 0)
-        tool_layout.setSpacing(8)
+        toolbar.setObjectName("toolbarFrame")
+        toolbar.setStyleSheet("#toolbarFrame { background-color: #0b1725; border-bottom: 1px solid #162a3f; }")
+        tool_layout = FlowLayout(toolbar, margin=0, h_spacing=8, v_spacing=6)
+        tool_layout.setContentsMargins(16, 6, 16, 6)
 
         self.add_tab_btn = QPushButton("➕ Добавить вкладку")
         self.add_tab_btn.setObjectName("primaryButton")
@@ -186,42 +189,17 @@ class MainWindow(QMainWindow):
         self.generate_report_btn.setObjectName("successButton")
         self.generate_report_btn.clicked.connect(self.open_report_dialog)
 
-        self.gdrive_btn = QPushButton("☁ Загрузить на Google Диск")
+        self.gdrive_btn = QPushButton("☁ Google Диск")
         self.gdrive_btn.setObjectName("secondaryButton")
         self.gdrive_btn.setToolTip("Выгрузить скриншоты активной вкладки на Google Диск")
         self.gdrive_btn.clicked.connect(self.open_gdrive_dialog)
 
-        self.rescan_btn = QPushButton("🔄 Пересчитать папки")
+        self.rescan_btn = QPushButton("🔄 Пересчитать")
         self.rescan_btn.setObjectName("secondaryButton")
+        self.rescan_btn.setToolTip("Пересчитать все папки со скриншотами")
         self.rescan_btn.clicked.connect(self.force_refresh_all)
 
-        tool_layout.addWidget(self.add_tab_btn)
-        tool_layout.addWidget(self.generate_report_btn)
-        tool_layout.addWidget(self.gdrive_btn)
-        tool_layout.addWidget(self.rescan_btn)
-        tool_layout.addStretch()
-
-        # Config Import / Export / Reset
-        self.export_btn = QPushButton("📤 Экспорт")
-        self.export_btn.setObjectName("secondaryButton")
-        self.export_btn.setToolTip("Сохранить файл настроек вкладок и полей, чтобы отправить другим игрокам")
-        self.export_btn.clicked.connect(self.export_config)
-
-        self.import_btn = QPushButton("📥 Импорт")
-        self.import_btn.setObjectName("secondaryButton")
-        self.import_btn.setToolTip("Загрузить файл настроек вкладок и полей, полученный от другого игрока")
-        self.import_btn.clicked.connect(self.import_config)
-
-        self.reset_btn = QPushButton("↺ Сброс")
-        self.reset_btn.setObjectName("secondaryButton")
-        self.reset_btn.setToolTip("Очистить все вкладки и поля")
-        self.reset_btn.clicked.connect(self.reset_to_default)
-
-        # Info dropdown menu (Requirement 2)
-        self.info_btn = QPushButton("ℹ Информация ▾")
-        self.info_btn.setObjectName("secondaryButton")
-        self.info_menu = QMenu(self)
-        self.info_menu.setStyleSheet("""
+        menu_qss = """
             QMenu {
                 background-color: #0b1725;
                 border: 1px solid #1e3a57;
@@ -237,7 +215,33 @@ class MainWindow(QMainWindow):
                 background-color: #0284c7;
                 color: #ffffff;
             }
-        """)
+        """
+
+        # Config Import / Export / Reset grouped into Settings dropdown
+        self.settings_btn = QPushButton("⚙ Настройки ▾")
+        self.settings_btn.setObjectName("secondaryButton")
+        self.settings_btn.setToolTip("Экспорт, импорт и сброс настроек вкладок и полей")
+        self.settings_menu = QMenu(self)
+        self.settings_menu.setStyleSheet(menu_qss)
+
+        export_act = self.settings_menu.addAction("📤 Экспорт настроек...")
+        export_act.triggered.connect(self.export_config)
+
+        import_act = self.settings_menu.addAction("📥 Импорт настроек...")
+        import_act.triggered.connect(self.import_config)
+
+        self.settings_menu.addSeparator()
+
+        reset_act = self.settings_menu.addAction("↺ Сбросить все вкладки")
+        reset_act.triggered.connect(self.reset_to_default)
+
+        self.settings_btn.setMenu(self.settings_menu)
+
+        # Info dropdown menu
+        self.info_btn = QPushButton("ℹ Информация ▾")
+        self.info_btn.setObjectName("secondaryButton")
+        self.info_menu = QMenu(self)
+        self.info_menu.setStyleSheet(menu_qss)
 
         about_act = self.info_menu.addAction("ℹ О программе")
         about_act.triggered.connect(self.open_about_dialog)
@@ -252,9 +256,11 @@ class MainWindow(QMainWindow):
 
         self.info_btn.setMenu(self.info_menu)
 
-        tool_layout.addWidget(self.export_btn)
-        tool_layout.addWidget(self.import_btn)
-        tool_layout.addWidget(self.reset_btn)
+        tool_layout.addWidget(self.add_tab_btn)
+        tool_layout.addWidget(self.generate_report_btn)
+        tool_layout.addWidget(self.gdrive_btn)
+        tool_layout.addWidget(self.rescan_btn)
+        tool_layout.addWidget(self.settings_btn)
         tool_layout.addWidget(self.info_btn)
 
         main_layout.addWidget(toolbar)
