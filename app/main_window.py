@@ -477,11 +477,18 @@ class MainWindow(QMainWindow):
             )
             return
         active_tab = self.config.tabs[current_idx]
-        dlg = GoogleDriveUploadDialog(self.config, tab=active_tab, parent=self)
-        dlg.exec()
-        self.save_current_config()
-        if dlg.links_updated:
-            self.status_bar.showMessage("Ссылки Google Диска привязаны к полям отчёта", 4000)
+        try:
+            dlg = GoogleDriveUploadDialog(self.config, tab=active_tab, parent=self)
+            dlg.exec()
+            self.save_current_config()
+            if dlg.links_updated:
+                self.status_bar.showMessage("Ссылки Google Диска привязаны к полям отчёта", 4000)
+        except Exception as e:
+            QMessageBox.warning(
+                self,
+                "Ошибка Google Диска",
+                f"Не удалось открыть окно выгрузки на Google Диск:\n{e}"
+            )
 
     def open_about_dialog(self):
         dlg = AboutDialog(self)

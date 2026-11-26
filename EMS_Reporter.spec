@@ -1,7 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
-from PyInstaller.utils.hooks import collect_submodules
+import sys
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files, collect_all
 
 block_cipher = None
 
@@ -9,12 +10,18 @@ datas = [
     ('icon.ico', '.'),
     ('icon.png', '.'),
 ]
+binaries = []
+_py3t_dll = os.path.join(sys.base_prefix, 'abi3t-compat', 'python3t.dll')
+if os.path.exists(_py3t_dll):
+    binaries.append((_py3t_dll, '.'))
+datas += collect_data_files('googleapiclient', includes=['discovery_cache/documents/drive.v3.json'])
 if os.path.exists('client_secrets.json'):
     datas.append(('client_secrets.json', '.'))
 
 hiddenimports = [
     'pydantic',
     'pydantic_core',
+    '_cffi_backend',
     'PySide6.QtCore',
     'PySide6.QtGui',
     'PySide6.QtWidgets',
@@ -23,10 +30,15 @@ hiddenimports += collect_submodules('googleapiclient')
 hiddenimports += collect_submodules('google_auth_oauthlib')
 hiddenimports += collect_submodules('google.auth')
 
+crypto_datas, crypto_bins, crypto_hidden = collect_all('cryptography')
+datas += crypto_datas
+binaries += crypto_bins
+hiddenimports += crypto_hidden
+
 a = Analysis(
     ['app/main.py'],
     pathex=['.'],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
@@ -60,7 +72,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,

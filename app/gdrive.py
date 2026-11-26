@@ -273,7 +273,10 @@ class GoogleDriveClient:
         if not creds:
             raise RuntimeError("Не выполнена авторизация в Google Диске.")
         from googleapiclient.discovery import build
-        self._service = build("drive", "v3", credentials=creds, cache_discovery=False)
+        try:
+            self._service = build("drive", "v3", credentials=creds, cache_discovery=False)
+        except Exception:
+            self._service = build("drive", "v3", credentials=creds, cache_discovery=False, static_discovery=False)
         return self._service
 
     def get_user_info(self) -> Optional[Dict[str, str]]:

@@ -10,6 +10,21 @@ project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
+# Ensure PyInstaller _MEIPASS DLLs (e.g. python3.dll for cryptography _rust.pyd) are discoverable
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS") and sys.platform == "win32":
+    try:
+        os.add_dll_directory(sys._MEIPASS)
+    except Exception:
+        pass
+    for _dll_name in ("python3.dll", "python3t.dll"):
+        _dll_path = os.path.join(sys._MEIPASS, _dll_name)
+        if os.path.exists(_dll_path):
+            try:
+                import ctypes
+                ctypes.WinDLL(_dll_path)
+            except Exception:
+                pass
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
