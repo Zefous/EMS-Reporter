@@ -174,12 +174,17 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(header)
 
-        # 2. Main Action Toolbar (Responsive FlowLayout + grouped Settings menu)
+        # 2. Main Action Toolbar (Left: FlowLayout actions, Right: Settings & Info)
         toolbar = QFrame()
         toolbar.setObjectName("toolbarFrame")
         toolbar.setStyleSheet("#toolbarFrame { background-color: #0b1725; border-bottom: 1px solid #162a3f; }")
-        tool_layout = FlowLayout(toolbar, margin=0, h_spacing=8, v_spacing=6)
-        tool_layout.setContentsMargins(16, 6, 16, 6)
+        toolbar_outer = QHBoxLayout(toolbar)
+        toolbar_outer.setContentsMargins(16, 6, 16, 6)
+        toolbar_outer.setSpacing(8)
+
+        left_actions_widget = QWidget()
+        left_actions_widget.setStyleSheet("background: transparent;")
+        tool_layout = FlowLayout(left_actions_widget, margin=0, h_spacing=8, v_spacing=6)
 
         self.add_tab_btn = QPushButton("➕ Добавить вкладку")
         self.add_tab_btn.setObjectName("primaryButton")
@@ -189,15 +194,14 @@ class MainWindow(QMainWindow):
         self.generate_report_btn.setObjectName("successButton")
         self.generate_report_btn.clicked.connect(self.open_report_dialog)
 
-        self.gdrive_btn = QPushButton("☁ Google Диск")
+        self.gdrive_btn = QPushButton("📤 Google Диск")
         self.gdrive_btn.setObjectName("secondaryButton")
         self.gdrive_btn.setToolTip("Выгрузить скриншоты активной вкладки на Google Диск")
         self.gdrive_btn.clicked.connect(self.open_gdrive_dialog)
 
-        self.rescan_btn = QPushButton("🔄 Пересчитать")
-        self.rescan_btn.setObjectName("secondaryButton")
-        self.rescan_btn.setToolTip("Пересчитать все папки со скриншотами")
-        self.rescan_btn.clicked.connect(self.force_refresh_all)
+        tool_layout.addWidget(self.add_tab_btn)
+        tool_layout.addWidget(self.generate_report_btn)
+        tool_layout.addWidget(self.gdrive_btn)
 
         menu_qss = """
             QMenu {
@@ -217,12 +221,17 @@ class MainWindow(QMainWindow):
             }
         """
 
-        # Config Import / Export / Reset grouped into Settings dropdown
+        # Config Import / Export / Rescan / Reset grouped into Settings dropdown
         self.settings_btn = QPushButton("⚙ Настройки ▾")
         self.settings_btn.setObjectName("secondaryButton")
-        self.settings_btn.setToolTip("Экспорт, импорт и сброс настроек вкладок и полей")
+        self.settings_btn.setToolTip("Пересчёт папок, экспорт, импорт и сброс настроек")
         self.settings_menu = QMenu(self)
         self.settings_menu.setStyleSheet(menu_qss)
+
+        rescan_act = self.settings_menu.addAction("🔄 Пересчитать папки")
+        rescan_act.triggered.connect(self.force_refresh_all)
+
+        self.settings_menu.addSeparator()
 
         export_act = self.settings_menu.addAction("📤 Экспорт настроек...")
         export_act.triggered.connect(self.export_config)
@@ -256,12 +265,15 @@ class MainWindow(QMainWindow):
 
         self.info_btn.setMenu(self.info_menu)
 
-        tool_layout.addWidget(self.add_tab_btn)
-        tool_layout.addWidget(self.generate_report_btn)
-        tool_layout.addWidget(self.gdrive_btn)
-        tool_layout.addWidget(self.rescan_btn)
-        tool_layout.addWidget(self.settings_btn)
-        tool_layout.addWidget(self.info_btn)
+        right_actions_layout = QHBoxLayout()
+        right_actions_layout.setContentsMargins(0, 0, 0, 0)
+        right_actions_layout.setSpacing(8)
+        right_actions_layout.addWidget(self.settings_btn)
+        right_actions_layout.addWidget(self.info_btn)
+
+        toolbar_outer.addWidget(left_actions_widget, 1)
+        toolbar_outer.addLayout(right_actions_layout)
+        toolbar_outer.setAlignment(right_actions_layout, Qt.AlignTop)
 
         main_layout.addWidget(toolbar)
 
