@@ -1,3 +1,3 @@
 """EMS Reporter Package - Majestic GTA V RP Medical Reports."""
 
-__version__ = "1.1.1b"
+__version__ = "1.2.0"
