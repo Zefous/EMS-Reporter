@@ -302,27 +302,35 @@ def test_edit_tab_dialog_clean_structure_and_enter_key(qapp):
     qapp.processEvents()
 
 
-def test_edit_field_dialog_all_four_types_and_enter_key(qapp):
-    """Verify EditFieldDialog supports all four types and saves on Enter."""
+def test_edit_field_dialog_all_five_types_and_enter_key(qapp):
+    """Verify EditFieldDialog supports all five types and saves on Enter."""
     from PySide6.QtGui import QKeyEvent
 
     dlg = EditFieldDialog()
     dlg.show()
 
-    assert dlg.type_combo.count() == 4
+    assert dlg.type_combo.count() == 5
     assert dlg.type_combo.itemData(0) == FieldType.FOLDER
     assert dlg.type_combo.itemData(1) == FieldType.NUMERIC
-    assert dlg.type_combo.itemData(2) == FieldType.LINKS
-    assert dlg.type_combo.itemData(3) == FieldType.LINKS_WITH_TASKS
+    assert dlg.type_combo.itemData(2) == FieldType.NUMERIC_WITH_FOLDER
+    assert dlg.type_combo.itemData(3) == FieldType.LINKS
+    assert dlg.type_combo.itemData(4) == FieldType.LINKS_WITH_TASKS
+
+    # Switch to FieldType.NUMERIC_WITH_FOLDER
+    dlg.type_combo.setCurrentIndex(2)
+    assert dlg.folder_container.isVisible() is True
+    assert dlg.numeric_container.isVisible() is True
+    assert dlg.batch_mode_chk.isVisible() is False
+    assert dlg.cloud_link_container.isVisible() is True
 
     # Switch to FieldType.LINKS
-    dlg.type_combo.setCurrentIndex(2)
+    dlg.type_combo.setCurrentIndex(3)
     assert dlg.simple_links_container.isVisible() is True
     assert dlg.tasks_links_container.isVisible() is False
     assert dlg.cloud_link_container.isVisible() is False
 
     # Switch to FieldType.LINKS_WITH_TASKS
-    dlg.type_combo.setCurrentIndex(3)
+    dlg.type_combo.setCurrentIndex(4)
     assert dlg.simple_links_container.isVisible() is False
     assert dlg.tasks_links_container.isVisible() is True
     assert dlg.cloud_link_container.isVisible() is False
@@ -367,7 +375,7 @@ def test_help_dialog_tree_and_articles(qapp):
     dlg.show()
 
     assert "Руководство пользователя" in dlg.windowTitle()
-    assert dlg.tree.topLevelItemCount() == 5  # intro, tabs, fields, report, config (no build_exe)
+    assert dlg.tree.topLevelItemCount() == 6  # intro, tabs, fields, gdrive, report, config (no build_exe)
 
     # Verify build_exe is not in tree
     all_titles = []
@@ -505,3 +513,78 @@ def test_update_dialog_ui(qapp):
     dlg.close()
     dlg.deleteLater()
     qapp.processEvents()
+
+
+def test_numeric_with_folder_card_widget(qapp):
+    """Verify FieldCardWidget renders spinbox, folder controls, and icon for NUMERIC_WITH_FOLDER."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        p = Path(tmp_dir)
+        (p / "a.png").write_bytes(b"123")
+
+        field = ReportField(
+            id="nf-ui",
+            name="Справки с папкой",
+            field_type=FieldType.NUMERIC_WITH_FOLDER,
+            folder_path=str(p),
+            points_per_unit=4.0,
+            manual_count=2,
+        )
+        card = FieldCardWidget(field)
+        card.show()
+
+        assert card.icon_lbl.text() == "🗂️"
+        assert hasattr(card, "spin_count")
+        assert hasattr(card, "pick_folder_btn")
+        assert card.badge_lbl.text() == "(2 шт - 8 б)"
+
+        card.spin_count.setValue(5)
+        assert card.badge_lbl.text() == "(5 шт - 20 б)"
+
+        card.close()
+        card.deleteLater()
+        qapp.processEvents()
+
+
+def test_gdrive_upload_dialog_ui(qapp):
+    """Verify GoogleDriveUploadDialog UI with mocked GoogleDriveClient."""
+    from unittest.mock import MagicMock
+    from app.gdrive import GoogleDriveClient
+    from app.gdrive_dialog import GoogleDriveUploadDialog
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        p = Path(tmp_dir)
+        (p / "shot1.png").write_bytes(b"img1")
+
+        config = ReporterConfig(auto_bind_gdrive_links=True)
+        tab = DepartmentTab(
+            id="t-gd",
+            title="Paramedic (PM)",
+            fields=[
+                ReportField(id="f1", name="ПМП день", field_type=FieldType.FOLDER, folder_path=str(p)),
+                ReportField(id="f2", name="Справки", field_type=FieldType.NUMERIC_WITH_FOLDER, folder_path=str(p), manual_count=1),
+                ReportField(id="f3", name="МП", field_type=FieldType.NUMERIC, manual_count=2),
+            ],
+        )
+
+        mock_service = MagicMock()
+        mock_service.about.return_value.get.return_value.execute.return_value = {
+            "user": {"emailAddress": "medic@example.com", "displayName": "Medic"}
+        }
+        client = GoogleDriveClient(service=mock_service)
+
+        dlg = GoogleDriveUploadDialog(config=config, tab=tab, client=client)
+        dlg.show()
+
+        assert "medic@example.com" in dlg.auth_status_lbl.text()
+        assert len(dlg.get_eligible_fields()) == 2
+        assert dlg.auto_bind_chk.isChecked() is True
+        assert dlg.radio_new.isChecked() is True
+        assert "Paramedic (PM)" in dlg.new_name_edit.text()
+        assert dlg.upload_btn.isEnabled() is True
+
+        dlg.auto_bind_chk.setChecked(False)
+        assert config.auto_bind_gdrive_links is False
+
+        dlg.close()
+        dlg.deleteLater()
+        qapp.processEvents()

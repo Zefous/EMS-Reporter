@@ -257,6 +257,100 @@ def test_updater_version_parsing():
     assert is_newer_version("1.1.1a", "1.1.1b") is True
     assert is_newer_version("1.1.1b", "1.1.2") is True
     assert is_newer_version("1.1.1b", "1.1.1b") is False
+
+
+def test_numeric_with_folder_field():
+    """Verify NUMERIC_WITH_FOLDER uses manual_count for points while scanning local folder."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        p = Path(tmpdir)
+        (p / "shot1.png").write_bytes(b"img1")
+        (p / "shot2.jpg").write_bytes(b"img2")
+        (p / "notes.txt").write_text("ignore")
+
+        field = ReportField(
+            id="nf1",
+            name="Мед. справки",
+            field_type=FieldType.NUMERIC_WITH_FOLDER,
+            folder_path=str(p),
+            points_per_unit=5.0,
+            manual_count=3,
+            cloud_link="https://drive.google.com/drive/folders/abc",
+        )
+
+        assert field.get_count() == 3
+        assert field.calculate_points() == 15.0
+        assert len(field.get_local_image_files()) == 2
+        assert field.format_report_entry() == "https://drive.google.com/drive/folders/abc (3 шт - 15 б)"
+
+        tpl = field.to_template()
+        assert tpl.folder_path == ""
+        assert tpl.manual_count == 0
+        assert tpl.cloud_link == ""
+
+
+def test_gdrive_plan_sync():
+    """Verify incremental sync planning: new, already synced, and orphaned remote files."""
+    from app.gdrive import compute_md5, plan_sync
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        p = Path(tmpdir)
+        f_same = p / "same.png"
+        f_same.write_bytes(b"identical-content")
+        f_new = p / "new.png"
+        f_new.write_bytes(b"brand-new-content")
+        f_changed = p / "changed.png"
+        f_changed.write_bytes(b"updated-content")
+
+        remote_files = [
+            {"id": "r1", "name": "same.png", "md5Checksum": compute_md5(f_same), "size": str(f_same.stat().st_size)},
+            {"id": "r2", "name": "changed.png", "md5Checksum": "00000000000000000000000000000000", "size": "5"},
+            {"id": "r3", "name": "deleted_locally.png", "md5Checksum": "1111", "size": "10"},
+        ]
+
+        plan = plan_sync([f_same, f_new, f_changed], remote_files)
+        assert [x.name for x in plan.already_synced] == ["same.png"]
+        assert sorted(x.name for x in plan.to_upload) == ["changed.png", "new.png"]
+        assert [x["name"] for x in plan.orphaned_remote] == ["deleted_locally.png"]
+
+
+def test_gdrive_client_unique_folder_and_subfolder():
+    """Verify GoogleDriveClient folder creation with suffixing and permissions using a mock service."""
+    from unittest.mock import MagicMock
+    from app.gdrive import GoogleDriveClient
+
+    mock_service = MagicMock()
+    mock_files = mock_service.files.return_value
+    mock_perms = mock_service.permissions.return_value
+
+    # Simulate existing folders: "Paramedic — 26.11.2026" and "Paramedic — 26.11.2026 (2)"
+    mock_files.list.return_value.execute.return_value = {
+        "files": [
+            {"id": "id1", "name": "Paramedic — 26.11.2026"},
+            {"id": "id2", "name": "Paramedic — 26.11.2026 (2)"},
+        ]
+    }
+    mock_files.create.return_value.execute.return_value = {
+        "id": "id3",
+        "name": "Paramedic — 26.11.2026 (3)",
+        "webViewLink": "https://drive.google.com/drive/folders/id3",
+    }
+
+    client = GoogleDriveClient(service=mock_service)
+    created = client.create_unique_report_folder("Paramedic — 26.11.2026")
+    assert created["name"] == "Paramedic — 26.11.2026 (3)"
+    create_body = mock_files.create.call_args.kwargs["body"]
+    assert create_body["name"] == "Paramedic — 26.11.2026 (3)"
+
+    # Subfolder creation when not found
+    mock_files.list.return_value.execute.return_value = {"files": []}
+    mock_files.create.return_value.execute.return_value = {
+        "id": "sub1",
+        "name": "ПМП день",
+        "webViewLink": "https://drive.google.com/drive/folders/sub1",
+    }
+    sub = client.get_or_create_subfolder("id3", "ПМП день")
+    assert sub["id"] == "sub1"
+    mock_perms.create.assert_called_once()
     assert is_newer_version("1.2.0", "1.1.9") is False
     assert is_newer_version("v1.1.0", "v1.2.0") is True
 

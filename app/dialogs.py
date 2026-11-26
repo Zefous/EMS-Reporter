@@ -442,13 +442,14 @@ class EditFieldDialog(QDialog):
         header.setStyleSheet("font-size: 14px; font-weight: bold; color: #38bdf8;")
         layout.addWidget(header)
 
-        # Field Type selector (4 types)
+        # Field Type selector (5 types)
         type_layout = QVBoxLayout()
         type_lbl = QLabel("Тип поля:")
         type_lbl.setStyleSheet("font-weight: 600; color: #cbd5e1;")
         self.type_combo = QComboBox()
         self.type_combo.addItem("📁 Папка со скриншотами (автоподсчёт файлов)", FieldType.FOLDER)
         self.type_combo.addItem("🔢 Числовое поле (ручной ввод)", FieldType.NUMERIC)
+        self.type_combo.addItem("🗂️ Числовое поле с папкой скриншотов", FieldType.NUMERIC_WITH_FOLDER)
         self.type_combo.addItem("🔗 Ссылки на сообщения (баллы за каждую ссылку)", FieldType.LINKS)
         self.type_combo.addItem("💬 Ссылки с подсчётом задач (баллы за задачи)", FieldType.LINKS_WITH_TASKS)
         self.type_combo.currentIndexChanged.connect(self.on_type_changed)
@@ -661,6 +662,8 @@ class EditFieldDialog(QDialog):
         ft = self.type_combo.currentData()
         if ft == FieldType.FOLDER:
             self.folder_container.show()
+            self.folder_info_lbl.setText("Файлы считаются автоматически (.png, .jpg, .jpeg, .webp)")
+            self.batch_mode_chk.show()
             self.numeric_container.hide()
             self.simple_links_container.hide()
             self.tasks_links_container.hide()
@@ -669,6 +672,17 @@ class EditFieldDialog(QDialog):
             self.on_batch_mode_toggled(self.batch_mode_chk.isChecked())
         elif ft == FieldType.NUMERIC:
             self.folder_container.hide()
+            self.numeric_container.show()
+            self.simple_links_container.hide()
+            self.tasks_links_container.hide()
+            self.cloud_link_container.show()
+            self.points_container.show()
+            self.pts_lbl.setText("Баллов за 1 единицу действия:")
+        elif ft == FieldType.NUMERIC_WITH_FOLDER:
+            self.folder_container.show()
+            self.folder_info_lbl.setText("Папка используется для выгрузки скриншотов в облако (количество вводится вручную)")
+            self.batch_mode_chk.hide()
+            self.batch_container.hide()
             self.numeric_container.show()
             self.simple_links_container.hide()
             self.tasks_links_container.hide()
@@ -724,14 +738,9 @@ class EditFieldDialog(QDialog):
         self.tasks_links_summary_lbl.setText(f"{cnt} ссылок ({tot_tasks} задач)")
 
     def load_field_data(self, f: ReportField):
-        if f.field_type == FieldType.FOLDER:
+        idx = self.type_combo.findData(f.field_type)
+        if idx < 0:
             idx = 0
-        elif f.field_type == FieldType.NUMERIC:
-            idx = 1
-        elif f.field_type == FieldType.LINKS:
-            idx = 2
-        else:
-            idx = 3
 
         self.type_combo.setCurrentIndex(idx)
         self.name_edit.setText(f.name)
@@ -772,9 +781,9 @@ class EditFieldDialog(QDialog):
 
         ft = self.type_combo.currentData()
         pts = self.points_spin.value()
-        folder = self.folder_edit.text().strip() if ft == FieldType.FOLDER else ""
-        manual = self.manual_spin.value() if ft == FieldType.NUMERIC else 0
-        cloud_link = self.cloud_link_edit.text().strip() if ft in (FieldType.FOLDER, FieldType.NUMERIC) else ""
+        folder = self.folder_edit.text().strip() if ft in (FieldType.FOLDER, FieldType.NUMERIC_WITH_FOLDER) else ""
+        manual = self.manual_spin.value() if ft in (FieldType.NUMERIC, FieldType.NUMERIC_WITH_FOLDER) else 0
+        cloud_link = self.cloud_link_edit.text().strip() if ft in (FieldType.FOLDER, FieldType.NUMERIC, FieldType.NUMERIC_WITH_FOLDER) else ""
 
         batch_enabled = self.batch_mode_chk.isChecked() if ft == FieldType.FOLDER else False
         batch_size = self.batch_size_spin.value()

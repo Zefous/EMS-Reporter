@@ -40,6 +40,10 @@ logs/
 # User data
 user_config.json
 ems_config.json
+client_secrets.json
+gdrive_token.json
+gdrive_token.dat
+Рабочие области-2026-11-26.md
 
 # OS files
 .DS_Store

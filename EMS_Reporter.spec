@@ -1,24 +1,34 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
 from PyInstaller.utils.hooks import collect_submodules
 
 block_cipher = None
+
+datas = [
+    ('icon.ico', '.'),
+    ('icon.png', '.'),
+]
+if os.path.exists('client_secrets.json'):
+    datas.append(('client_secrets.json', '.'))
+
+hiddenimports = [
+    'pydantic',
+    'pydantic_core',
+    'PySide6.QtCore',
+    'PySide6.QtGui',
+    'PySide6.QtWidgets',
+]
+hiddenimports += collect_submodules('googleapiclient')
+hiddenimports += collect_submodules('google_auth_oauthlib')
+hiddenimports += collect_submodules('google.auth')
 
 a = Analysis(
     ['app/main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[
-        ('icon.ico', '.'),
-        ('icon.png', '.'),
-    ],
-    hiddenimports=[
-        'pydantic',
-        'pydantic_core',
-        'PySide6.QtCore',
-        'PySide6.QtGui',
-        'PySide6.QtWidgets',
-    ],
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

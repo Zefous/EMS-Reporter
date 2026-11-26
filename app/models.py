@@ -11,10 +11,11 @@ from pydantic import BaseModel, Field
 
 class FieldType(str, Enum):
     """Type of field inside a department tab."""
-    FOLDER = "folder"                      # Counts screenshots in a directory
-    NUMERIC = "numeric"                    # Manual numeric input (spinbox)
-    LINKS = "links"                        # Simple links (points awarded per link)
-    LINKS_WITH_TASKS = "links_with_tasks"  # Links with task counts (points awarded per task)
+    FOLDER = "folder"                              # Counts screenshots in a directory
+    NUMERIC = "numeric"                            # Manual numeric input (spinbox)
+    NUMERIC_WITH_FOLDER = "numeric_with_folder"    # Manual numeric input + attached screenshot folder
+    LINKS = "links"                                # Simple links (points awarded per link)
+    LINKS_WITH_TASKS = "links_with_tasks"          # Links with task counts (points awarded per task)
 
 
 class DiscordLinkItem(BaseModel):
@@ -89,33 +90,37 @@ class ReportField(BaseModel):
         data["cloud_link"] = ""
         return ReportField.model_validate(data)
 
-    def count_files(self) -> int:
-        """Count matching files in folder if folder_path exists."""
-        if self.field_type != FieldType.FOLDER:
-            return self.manual_count
-
+    def get_local_image_files(self) -> List[Path]:
+        """Return sorted list of matching image files in folder_path."""
         if not self.folder_path or not os.path.exists(self.folder_path):
-            return 0
+            return []
 
         path = Path(self.folder_path)
         if not path.is_dir():
-            return 0
+            return []
 
         valid_exts = {ext.lower() for ext in self.filter_extensions} if self.filter_extensions else None
-        count = 0
+        files: List[Path] = []
         try:
             with os.scandir(path) as it:
                 for entry in it:
                     if entry.is_file():
                         if valid_exts is None:
-                            count += 1
+                            files.append(Path(entry.path))
                         else:
                             _, ext = os.path.splitext(entry.name)
                             if ext.lower() in valid_exts:
-                                count += 1
+                                files.append(Path(entry.path))
         except (PermissionError, OSError):
-            return 0
-        return count
+            return []
+        files.sort(key=lambda p: p.name.lower())
+        return files
+
+    def count_files(self) -> int:
+        """Count matching files in folder if folder_path exists."""
+        if self.field_type != FieldType.FOLDER:
+            return self.manual_count
+        return len(self.get_local_image_files())
 
     def get_count(self) -> int:
         """Get the total completed item/link/task count."""
@@ -237,6 +242,7 @@ class ReporterConfig(BaseModel):
     player_name: str = Field(default="", description="Name of player (e.g. John Doe)")
     player_static: str = Field(default="", description="Static ID / passport (e.g. 12345)")
     auto_refresh_seconds: int = Field(default=5, ge=0, description="Auto folder scan interval (0 = off)")
+    auto_bind_gdrive_links: bool = Field(default=True, description="Automatically bind Google Drive folder links to fields after upload")
     active_tab_id: Optional[str] = Field(default=None, description="Last selected tab ID")
     tabs: List[DepartmentTab] = Field(default_factory=list, description="List of configured tabs")
 

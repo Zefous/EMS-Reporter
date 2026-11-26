@@ -36,6 +36,7 @@ from app.report_dialog import ReportPreviewDialog
 from app.about_dialog import AboutDialog
 from app.help_dialog import HelpDialog
 from app.export_import_dialogs import ExportDialog, ImportOptionsDialog
+from app.gdrive_dialog import GoogleDriveUploadDialog
 from app.updater import CheckUpdateThread, is_newer_version
 from app.update_dialog import UpdateDialog
 
@@ -185,12 +186,18 @@ class MainWindow(QMainWindow):
         self.generate_report_btn.setObjectName("successButton")
         self.generate_report_btn.clicked.connect(self.open_report_dialog)
 
+        self.gdrive_btn = QPushButton("☁ Загрузить на Google Диск")
+        self.gdrive_btn.setObjectName("secondaryButton")
+        self.gdrive_btn.setToolTip("Выгрузить скриншоты активной вкладки на Google Диск")
+        self.gdrive_btn.clicked.connect(self.open_gdrive_dialog)
+
         self.rescan_btn = QPushButton("🔄 Пересчитать папки")
         self.rescan_btn.setObjectName("secondaryButton")
         self.rescan_btn.clicked.connect(self.force_refresh_all)
 
         tool_layout.addWidget(self.add_tab_btn)
         tool_layout.addWidget(self.generate_report_btn)
+        tool_layout.addWidget(self.gdrive_btn)
         tool_layout.addWidget(self.rescan_btn)
         tool_layout.addStretch()
 
@@ -441,6 +448,22 @@ class MainWindow(QMainWindow):
         active_tab = self.config.tabs[current_idx] if 0 <= current_idx < len(self.config.tabs) else None
         dlg = ReportPreviewDialog(self.config, tab=active_tab, parent=self)
         dlg.exec()
+
+    def open_gdrive_dialog(self):
+        current_idx = self.tab_widget.currentIndex()
+        if not (0 <= current_idx < len(self.config.tabs)):
+            QMessageBox.information(
+                self,
+                "Google Диск",
+                "Сначала создайте или выберите вкладку для выгрузки скриншотов."
+            )
+            return
+        active_tab = self.config.tabs[current_idx]
+        dlg = GoogleDriveUploadDialog(self.config, tab=active_tab, parent=self)
+        dlg.exec()
+        self.save_current_config()
+        if dlg.links_updated:
+            self.status_bar.showMessage("Ссылки Google Диска привязаны к полям отчёта", 4000)
 
     def open_about_dialog(self):
         dlg = AboutDialog(self)

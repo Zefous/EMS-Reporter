@@ -40,7 +40,7 @@ class FieldCardWidget(QFrame):
         self.field = field
 
         # Set styling class based on type
-        if field.field_type == FieldType.NUMERIC:
+        if field.field_type in (FieldType.NUMERIC, FieldType.NUMERIC_WITH_FOLDER):
             self.setProperty("class", "FieldCardNumeric")
         elif field.field_type == FieldType.LINKS:
             self.setProperty("class", "FieldCardLinks")
@@ -69,6 +69,8 @@ class FieldCardWidget(QFrame):
             icon_text = "📁"
         elif self.field.field_type == FieldType.NUMERIC:
             icon_text = "🔢"
+        elif self.field.field_type == FieldType.NUMERIC_WITH_FOLDER:
+            icon_text = "🗂️"
         elif self.field.field_type == FieldType.LINKS:
             icon_text = "🔗"
         else:
@@ -86,7 +88,7 @@ class FieldCardWidget(QFrame):
         left_layout.addLayout(title_row)
 
         # Subtitle info
-        if self.field.field_type == FieldType.FOLDER:
+        if self.field.field_type in (FieldType.FOLDER, FieldType.NUMERIC_WITH_FOLDER):
             folder_row = QHBoxLayout()
             folder_row.setSpacing(6)
 
@@ -150,8 +152,8 @@ class FieldCardWidget(QFrame):
 
         main_layout.addLayout(left_layout, 2)
 
-        # Middle: Numeric Controls (if numeric field)
-        if self.field.field_type == FieldType.NUMERIC:
+        # Middle: Numeric Controls (if numeric or numeric_with_folder field)
+        if self.field.field_type in (FieldType.NUMERIC, FieldType.NUMERIC_WITH_FOLDER):
             mid_layout = QHBoxLayout()
             mid_layout.setSpacing(4)
 
@@ -173,7 +175,7 @@ class FieldCardWidget(QFrame):
         self.badge_lbl = QLineEdit()
         self.badge_lbl.setReadOnly(True)
         self.badge_lbl.setAlignment(Qt.AlignCenter)
-        if self.field.field_type == FieldType.NUMERIC:
+        if self.field.field_type in (FieldType.NUMERIC, FieldType.NUMERIC_WITH_FOLDER):
             self.badge_lbl.setObjectName("badgeNumericScore")
         elif self.field.field_type == FieldType.LINKS:
             self.badge_lbl.setObjectName("badgeLinksScore")
@@ -227,8 +229,11 @@ class FieldCardWidget(QFrame):
         if not hasattr(self, "path_lbl"):
             return
 
-        if self.field.batch_mode_enabled:
+        if self.field.field_type == FieldType.FOLDER and self.field.batch_mode_enabled:
             rate_info = f"{int(self.field.batch_points) if self.field.batch_points.is_integer() else self.field.batch_points} б за каждые {self.field.batch_size} шт"
+        elif self.field.field_type == FieldType.NUMERIC_WITH_FOLDER:
+            pts_val = f"{int(self.field.points_per_unit)}" if self.field.points_per_unit.is_integer() else f"{self.field.points_per_unit:.1f}"
+            rate_info = f"Ручной ввод • {pts_val} б/ед"
         else:
             pts_val = f"{int(self.field.points_per_unit)}" if self.field.points_per_unit.is_integer() else f"{self.field.points_per_unit:.1f}"
             rate_info = f"{pts_val} б/скриншот"
@@ -360,6 +365,8 @@ class FieldCardWidget(QFrame):
                 icon_text = "📁"
             elif self.field.field_type == FieldType.NUMERIC:
                 icon_text = "🔢"
+            elif self.field.field_type == FieldType.NUMERIC_WITH_FOLDER:
+                icon_text = "🗂️"
             elif self.field.field_type == FieldType.LINKS:
                 icon_text = "🔗"
             else:
